@@ -73,11 +73,19 @@ class EDiv(Exp):
         v2 = self._exp2.eval()
 
         if v1.type == "rational":
-            return EDiv(v1)
-        if v2.type == "rational":
-            return EDiv(v2)
-
-        return VRational(self._exp1, self._exp2)
+            if v2.type == "rational":
+                return EDiv(EInteger(ETimes(EInteger(v1.numer), EInteger(v2.denom)).eval().value),
+                            EInteger(ETimes(EInteger(v2.numer), EInteger(v1.denom)).eval().value))
+            else:
+                return EDiv(EInteger(ETimes(v1.numer, EInteger(v2.value)).eval().value),
+                            v1.denom).eval()
+        elif v1.type == "integer":
+            if v2.type == "integer":
+                print self._exp1.eval().value
+                print self._exp2.eval().value
+                print VRational(self._exp1, self._exp2)
+                return VRational(self._exp1, self._exp2)
+        return None
 
 
 class EPlus(Exp):
@@ -98,8 +106,8 @@ class EPlus(Exp):
         elif v1.type == "vector" and v2.type == "vector":
             vector = []
             for i in range(v1.length):
-                vector.append(EPlus(v1.get(i), v2.get(i)))
-            print vector
+                if v1.get(i).type == "integer" and v2.get(i).type == "integer":
+                    vector.append(EPlus(EInteger(v1.get(i).value), EInteger(v2.get(i).value)))
             return VVector(vector)
         raise Exception("Runtime error: trying to add non-numbers")
 
@@ -119,6 +127,12 @@ class EMinus(Exp):
         v2 = self._exp2.eval()
         if v1.type == "integer" and v2.type == "integer":
             return VInteger(v1.value - v2.value)
+        elif v1.type == "vector" and v2.type == "vector":
+            vector = []
+            for i in range(v1.length):
+                if v1.get(i).type == "integer" and v2.get(i).type == "integer":
+                    vector.append(EMinus(EInteger(v1.get(i).value), EInteger(v2.get(i).value)))
+            return VVector(vector)
         raise Exception("Runtime error: trying to subtract non-numbers")
 
 
@@ -137,6 +151,15 @@ class ETimes(Exp):
         v2 = self._exp2.eval()
         if v1.type == "integer" and v2.type == "integer":
             return VInteger(v1.value * v2.value)
+        elif v1.type == "vector" and v2.type == "vector":
+            vector = []
+            for i in range(v1.length):
+                if v1.get(i).type == "integer" and v2.get(i).type == "integer":
+                    vector.append(ETimes(EInteger(v1.get(i).value), EInteger(v2.get(i).value)).eval().value)
+            counter = 0
+            for val in vector:
+                counter += val
+            return VInteger(counter)
         raise Exception("Runtime error: trying to multiply non-numbers")
 
 
@@ -191,15 +214,23 @@ class EAnd(Exp):
         return "EAnd({}, {})".format(self._exp1, self._exp2)
 
     def eval(self):
-        v1 = self._exp1.eval().value
-        v2 = self._exp2.eval().value
+        v1 = self._exp1.eval()
+        v2 = self._exp2.eval()
 
-        if not v1:
+        if v1.type == "vector" and v2.type == "vector":
+            vector = []
+            for i in range(v1.length):
+                if v1.get(i).type == "boolean" and v2.get(i).type == "boolean":
+                    vector.append(EAnd(EBoolean(v1.get(i).value), EBoolean(v2.get(i).value)))
+            return VVector(vector)
+
+        if not v1.value:
             return VBoolean(False)
-        elif v1 and v2:
+        elif v1.value and v2.value:
             return VBoolean(True)
         else:
             return VBoolean(False)
+            # TODO: should throw an exception if types fail above
 
 
 class EOr(Exp):
@@ -213,10 +244,17 @@ class EOr(Exp):
         return "EOr({}, {})".format(self._exp1, self._exp2)
 
     def eval(self):
-        v1 = self._exp1.eval().value
-        v2 = self._exp2.eval().value
+        v1 = self._exp1.eval()
+        v2 = self._exp2.eval()
 
-        if v1 or v2:
+        if v1.type == "vector" and v2.type == "vector":
+            vector = []
+            for i in range(v1.length):
+                if v1.get(i).type == "boolean" and v2.get(i).type == "boolean":
+                    vector.append(EOr(EBoolean(v1.get(i).value), EBoolean(v2.get(i).value)))
+            return VVector(vector)
+
+        if v1.value or v2.value:
             return VBoolean(True)
         else:
             return VBoolean(False)
@@ -232,12 +270,21 @@ class ENot(Exp):
         return "ENot({})".format(self._exp1)
 
     def eval(self):
-        v1 = self._exp.eval().value
+        v1 = self._exp.eval()
 
-        if not v1:
+        if v1.type == "vector":
+            vector = []
+            for i in range(v1.length):
+                if v1.get(i).type == "boolean":
+                    vector.append(ENot(EBoolean(v1.get(i).value)))
+            return VVector(vector)
+
+        if not v1.value:
             return VBoolean(True)
         else:
             return VBoolean(False)
+
+
 #
 # Values
 #
@@ -279,6 +326,8 @@ class VRational(Value):
         self.numer = numer
         self.denom = denom
         self.type = "rational"
+
+
 #
 # Testing code
 #
@@ -350,6 +399,13 @@ if __name__ == '__main__':
     # print pair(EOr(b1,b2).eval())
     # print pair(ENot(b1).eval())
 
+    # ETimes with vectors
+    # v1 = EVector([EInteger(2), EInteger(3)])
+    # v2 = EVector([EInteger(33), EInteger(66)])
+    # print ETimes(v1, v2).eval().value
+    # print ETimes(v1, EPlus(v2, v2)).eval().value
+    # print ETimes(v1, EMinus(v2, v2)).eval().value
+
     # VRational tests
     # print VRational(1, 3).numer
     # print VRational(1, 3).denom
@@ -360,7 +416,8 @@ if __name__ == '__main__':
     def rat(v): return "{}/{}".format(v.numer, v.denom)
 
 
-    print rat(EDiv(EInteger(1), EInteger(2)).eval())
-    print rat(EDiv(EInteger(2), EInteger(3)).eval())
+    # print rat(EDiv(EInteger(1), EInteger(2)).eval())
+    # print rat(EDiv(EInteger(2), EInteger(3)).eval())
+    # print rat(EDiv(EDiv(EInteger(2), EInteger(3)), EDiv(EInteger(4), EInteger(5))).eval())
     print rat(EDiv(EDiv(EInteger(2), EInteger(3)), EInteger(4)).eval())
-    print rat(EDiv(EInteger(2), EDiv(EInteger(3), EInteger(4))).eval())
+    # print rat(EDiv(EInteger(2), EDiv(EInteger(3), EInteger(4))).eval())
