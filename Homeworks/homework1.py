@@ -75,16 +75,16 @@ class EDiv(Exp):
         if v1.type == "rational":
             if v2.type == "rational":
                 return EDiv(EInteger(ETimes(EInteger(v1.numer), EInteger(v2.denom)).eval().value),
-                            EInteger(ETimes(EInteger(v2.numer), EInteger(v1.denom)).eval().value))
+                            EInteger(ETimes(EInteger(v2.numer), EInteger(v1.denom)).eval().value)).eval()
             else:
-                return EDiv(EInteger(ETimes(v1.numer, EInteger(v2.value)).eval().value),
-                            v1.denom).eval()
+                return EDiv(EInteger(v1.numer),
+                            EInteger(ETimes(EInteger(v2.value), EInteger(v1.denom)).eval().value)).eval()
         elif v1.type == "integer":
             if v2.type == "integer":
-                print self._exp1.eval().value
-                print self._exp2.eval().value
-                print VRational(self._exp1, self._exp2)
-                return VRational(self._exp1, self._exp2)
+                return VRational(v1.value, v2.value)
+            else:
+                return EDiv(EInteger(ETimes(EInteger(v1.value), EInteger(v2.denom)).eval().value),
+                            EInteger(v2.numer)).eval()
         return None
 
 
@@ -414,10 +414,7 @@ if __name__ == '__main__':
 
     # EDiv tests
     def rat(v): return "{}/{}".format(v.numer, v.denom)
-
-
-    # print rat(EDiv(EInteger(1), EInteger(2)).eval())
-    # print rat(EDiv(EInteger(2), EInteger(3)).eval())
-    # print rat(EDiv(EDiv(EInteger(2), EInteger(3)), EDiv(EInteger(4), EInteger(5))).eval())
+    print rat(EDiv(EInteger(1), EInteger(2)).eval())
+    print rat(EDiv(EInteger(2), EInteger(3)).eval())
     print rat(EDiv(EDiv(EInteger(2), EInteger(3)), EInteger(4)).eval())
-    # print rat(EDiv(EInteger(2), EDiv(EInteger(3), EInteger(4))).eval())
+    print rat(EDiv(EInteger(2), EDiv(EInteger(3), EInteger(4))).eval())
