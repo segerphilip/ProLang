@@ -103,12 +103,24 @@ class EPlus(Exp):
         v2 = self._exp2.eval()
         if v1.type == "integer" and v2.type == "integer":
             return VInteger(v1.value + v2.value)
+
         elif v1.type == "vector" and v2.type == "vector":
             vector = []
             for i in range(v1.length):
                 if v1.get(i).type == "integer" and v2.get(i).type == "integer":
                     vector.append(EPlus(EInteger(v1.get(i).value), EInteger(v2.get(i).value)))
             return VVector(vector)
+
+        elif v1.type == "rational" and v2.type == "rational":
+            return VRational(EPlus(EInteger((ETimes(EInteger(v2.denom), EInteger(v1.numer))).eval().value), EInteger(ETimes(EInteger(v1.denom), EInteger(v2.numer)).eval().value)).eval().value, ETimes(EInteger(v1.denom), EInteger(v2.denom)).eval().value)
+
+        elif v1.type == "rational" and v2.type == "integer":
+            return VRational(EPlus(EInteger((ETimes(EInteger(v2.value), EInteger(v1.denom))).eval().value), EInteger(v1.numer)).eval().value, v1.denom)
+
+        elif v1.type == "integer" and v2.type == "rational":
+            return VRational(EPlus(EInteger((ETimes(EInteger(v1.value), EInteger(v2.denom))).eval().value), EInteger(v2.numer)).eval().value, v2.denom)
+
+
         raise Exception("Runtime error: trying to add non-numbers")
 
 
@@ -133,6 +145,17 @@ class EMinus(Exp):
                 if v1.get(i).type == "integer" and v2.get(i).type == "integer":
                     vector.append(EMinus(EInteger(v1.get(i).value), EInteger(v2.get(i).value)))
             return VVector(vector)
+
+        elif v1.type == "rational" and v2.type == "rational":
+            return VRational(EMinus(EInteger((ETimes(EInteger(v2.denom), EInteger(v1.numer))).eval().value), EInteger(ETimes(EInteger(v1.denom), EInteger(v2.numer)).eval().value)).eval().value, ETimes(EInteger(v1.denom), EInteger(v2.denom)).eval().value)
+
+        elif v1.type == "rational" and v2.type == "integer":
+            return VRational(EMinus(EInteger(v1.numer), EInteger((ETimes(EInteger(v2.value), EInteger(v1.denom))).eval().value)).eval().value, v1.denom)
+
+        elif v1.type == "integer" and v2.type == "rational":
+            return VRational(EMinus(EInteger((ETimes(EInteger(v1.value), EInteger(v2.denom))).eval().value), EInteger(v2.numer)).eval().value, v2.denom)
+
+
         raise Exception("Runtime error: trying to subtract non-numbers")
 
 
@@ -160,6 +183,15 @@ class ETimes(Exp):
             for val in vector:
                 counter += val
             return VInteger(counter)
+
+        elif v1.type == "rational" and v2.type == "rational":
+            return VRational(ETimes(EInteger(v1.numer), EInteger(v2.numer)).eval().value, ETimes(EInteger(v1.denom), EInteger(v2.denom)).eval().value)
+        elif v1.type == "rational" and v2.type == "integer":
+            return VRational(ETimes(EInteger(v2.value), EInteger(v1.numer)).eval().value, v1.denom)
+        elif v1.type == "integer" and v2.type == "rational":
+            return VRational(ETimes(EInteger(v1.value), EInteger(v2.numer)).eval().value, v2.denom)
+
+
         raise Exception("Runtime error: trying to multiply non-numbers")
 
 
@@ -413,8 +445,21 @@ if __name__ == '__main__':
     # print VRational(2, 3).denom
 
     # EDiv tests
-    def rat(v): return "{}/{}".format(v.numer, v.denom)
-    print rat(EDiv(EInteger(1), EInteger(2)).eval())
-    print rat(EDiv(EInteger(2), EInteger(3)).eval())
-    print rat(EDiv(EDiv(EInteger(2), EInteger(3)), EInteger(4)).eval())
-    print rat(EDiv(EInteger(2), EDiv(EInteger(3), EInteger(4))).eval())
+    # def rat(v): return "{}/{}".format(v.numer, v.denom)
+    # print rat(EDiv(EInteger(1), EInteger(2)).eval())
+    # print rat(EDiv(EInteger(2), EInteger(3)).eval())
+    # print rat(EDiv(EDiv(EInteger(2), EInteger(3)), EInteger(4)).eval())
+    # print rat(EDiv(EInteger(2), EDiv(EInteger(3), EInteger(4))).eval())
+
+    # def rat (v): return "{}/{}".format(v.numer,v.denom)
+    #
+    # half = EDiv(EInteger(1),EInteger(2))
+    # third = EDiv(EInteger(1),EInteger(3))
+
+    # print rat(EPlus(half,third).eval())
+    # print rat(EPlus(EInteger(1), half).eval())
+    # print rat(EMinus(half,third).eval())
+    # print rat(EMinus(EInteger(1), half).eval())
+    # print rat(ETimes(half,third).eval())
+    # print rat(ETimes(EInteger(1), half).eval())
+    # print rat(ETimes(half,EInteger(1)).eval())
