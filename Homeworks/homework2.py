@@ -98,26 +98,36 @@ class EIf (Exp):
 class ELet (Exp):
     # local binding
 
-    def __init__ (self,id,e1,e2):
-        self._id = id
-        self._e1 = e1
-        self._e2 = e2
+    def __init__ (self, bind_list, exp):
+        self._bindings = bind_list
+        self._exp = exp
 
     def __str__ (self):
-        return "ELet({},{},{})".format(self._id,self._e1,self._e2)
+        return "ELet({},{})".format(self._bindings, self._exp)
 
     def eval (self,prim_dict):
-        new_e2 = self._e2.substitute(self._id,self._e1)
-        return new_e2.eval(prim_dict)
+
+        if len(self._bindings) > 1:
+            new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
+            return ELet(self._bindings[1:], new_exp).eval(prim_dict)
+
+        print "_______________"
+
+        print self._bindings
+
+
+        new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
+
+        print new_exp
+
+        return new_exp.eval(prim_dict)
 
     def substitute (self,id,new_e):
-        if id == self._id:
-            return ELet(self._id,
-                        self._e1.substitute(id,new_e),
-                        self._e2)
-        return ELet(self._id,
-                    self._e1.substitute(id,new_e),
-                    self._e2.substitute(id,new_e))
+        if id == self._bindings[0][0]:
+            return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],self._exp)
+
+        return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],
+                        self._exp.substitute(id, new_e))
 
 
 class EId (Exp):
@@ -130,6 +140,7 @@ class EId (Exp):
         return "EId({})".format(self._id)
 
     def eval (self,prim_dict):
+        print self._id
         raise Exception("Runtime error: unknown identifier {}".format(self._id))
 
     def substitute (self,id,new_e):
@@ -138,7 +149,7 @@ class EId (Exp):
         return self
 
 
-    
+
 #
 # Values
 #
@@ -165,7 +176,7 @@ class VBoolean (Value):
 
 # Primitive operations
 
-def oper_plus (v1,v2): 
+def oper_plus (v1,v2):
     if v1.type == "integer" and v2.type == "integer":
         return VInteger(v1.value + v2.value)
     raise Exception ("Runtime error: trying to add non-numbers")
@@ -195,4 +206,9 @@ INITIAL_PRIM_DICT = {
 #
 
 if __name__ == '__main__':
-    print ELet([("a",EInteger(99))],EId("a")).eval(INITIAL_PRIM_DICT).value
+    # print ELet([("a",EInteger(99))],EId("a")).eval(INITIAL_PRIM_DICT).value
+    # print ELet([("a",EInteger(99)), ("b",EInteger(66))],EId("a")).eval(INITIAL_PRIM_DICT).value
+    # print ELet([("a",EInteger(99)), ("b",EInteger(66))],EId("b")).eval(INITIAL_PRIM_DICT).value
+    # print ELet([("a",EInteger(99))], ELet([("a",EInteger(66)), ("b", EId("a"))], EId("a"))).eval(INITIAL_PRIM_DICT).value
+    # print ELet([("a",EInteger(99))], ELet([("a",EInteger(66)), ("b", EId("a"))], EId("b"))).eval(INITIAL_PRIM_DICT).value
+    print ELet([("a",EInteger(5)), ("b",EInteger(20))], ELet([("a",EId("b")), ("b",EId("a"))], EPrimCall("-",[EId("a"),EId("b")]))).eval(INITIAL_PRIM_DICT).value
