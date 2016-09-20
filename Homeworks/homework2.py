@@ -113,12 +113,11 @@ class ELet (Exp):
         return newA.eval(prim_dict)
 
     def substitute (self,id,new_e):
+        arr = []
+        for binding in self._bindings:
+            arr.append((binding[0], binding[1].substitute(id, new_e)))
 
-        if id == self._bindings[0][0]:
-            return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],self._exp)
-
-        return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],
-                        self._exp.substitute(id, new_e))
+        return ELet(arr, self._exp)
 
 
 class ELetS (Exp):
@@ -132,34 +131,27 @@ class ELetS (Exp):
         return "ELet({},{})".format(self._bindings, self._exp)
 
     def eval (self,prim_dict):
-        newA = self._exp
-        for x in self._bindings:
-            newA = newA.substitute(x[0], x[1])
-
-        return newA.eval(prim_dict)
-
-
-        # if len(self._bindings) > 1:
-        #     new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
-        #     return ELet(self._bindings[1:], new_exp).eval(prim_dict)
-
-        # print "_______________"
-
-        # print self._bindings
+        # newA = self._exp
+        # for x in self._bindings:
+        #     newA = newA.substitute(x[0], x[1])
+        #
+        # return newA.eval(prim_dict)
 
 
-        # new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
+        if len(self._bindings) > 1:
+            new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
+            return ELetS(self._bindings[1:], new_exp).eval(prim_dict)
 
-        # print new_exp
+        new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
 
-        # return new_exp.eval(prim_dict)
+        return new_exp.eval(prim_dict)
 
     def substitute (self,id,new_e):
 
         if id == self._bindings[0][0]:
-            return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],self._exp)
+            return ELetS([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],self._exp)
 
-        return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],
+        return ELetS([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],
                         self._exp.substitute(id, new_e))
 
 
@@ -179,21 +171,19 @@ class ELetV (Exp):
             newA = newA.substitute(x[0], x[1])
 
         return newA.eval(prim_dict)
-
-
         # if len(self._bindings) > 1:
         #     new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
         #     return ELet(self._bindings[1:], new_exp).eval(prim_dict)
-
+        #
         # print "_______________"
-
+        #
         # print self._bindings
-
-
+        #
+        #
         # new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
-
+        #
         # print new_exp
-
+        #
         # return new_exp.eval(prim_dict)
 
     def substitute (self,id,new_e):
@@ -301,20 +291,19 @@ FUN_DICT = {
 #
 
 if __name__ == '__main__':
-    # ELet
     # print ELet([("a",EInteger(99))],EId("a")).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99)), ("b",EInteger(66))],EId("a")).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99)), ("b",EInteger(66))],EId("b")).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99))], ELet([("a",EInteger(66)), ("b", EId("a"))], EId("a"))).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99))], ELet([("a",EInteger(66)), ("b", EId("a"))], EId("b"))).eval(INITIAL_PRIM_DICT).value
-    print ELet([("a",EInteger(5)), ("b",EInteger(20))], ELet([("a",EId("b")), ("b",EId("a"))], EPrimCall("-",[EId("a"),EId("b")]))).eval(INITIAL_PRIM_DICT).value
+    # print ELet([("a",EInteger(5)), ("b",EInteger(20))], ELet([("a",EId("b")), ("b",EId("a"))], EPrimCall("-",[EId("a"),EId("b")]))).eval(INITIAL_PRIM_DICT).value
 
     # ELetS
     # print ELetS([("a",EInteger(99))],EId("a")).eval(INITIAL_PRIM_DICT).value
     # print ELetS([("a",EInteger(99)),("b",EInteger(66))],EId("a")).eval(INITIAL_PRIM_DICT).value
     # print ELetS([("a",EInteger(99)),("b",EInteger(66))],EId("b")).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99))],ELetS([("a",EInteger(66)),("b",EId("a"))],EId("a"))).eval(INITIAL_PRIM_DICT).value
-    # print ELet([("a",EInteger(99))],ELetS([("a",EInteger(66)),("b",EId("a"))],EId("b"))).eval(INITIAL_PRIM_DICT).value
+    print ELet([("a",EInteger(99))],ELetS([("a",EInteger(66)),("b",EId("a"))],EId("b"))).eval(INITIAL_PRIM_DICT).value
     # print ELetS([("a",EInteger(5)),("b",EInteger(20))],ELetS([("a",EId("b")),("b",EId("a"))],EPrimCall("-",[EId("a"),EId("b")]))).eval(INITIAL_PRIM_DICT).value
 
     # ELetV
