@@ -12,9 +12,12 @@
 # somewhere along the way we are doing something wrong, and we can't figure out
 # where. Deniz Celik helped us understand some higher level concepts, and we
 # think we know what is going on conceptually but are getting tripped up in the
-# implementation. We also believe that we have the start of the implementation
+# implementation. 
+# 
+# We also believe that we have the start of the implementation
 # of ECall, but we don't know where we are supposed to call the substitute
 # method and we've run out of time.
+
 
 #
 # Expressions
