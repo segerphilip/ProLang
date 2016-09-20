@@ -6,9 +6,15 @@
 # Emails: Hannah.Twigg-Smith@students.olin.edu, Philip.Seger@students.olin.edu
 #
 # Remarks:
-#
-
-
+# We spent about 8 hours on this assignment, but we were unable to complete a
+# fully functional version of ELetS. Our approach to ELetS involves recursing
+# through the given expression to find blocking bindings, but we think that
+# somewhere along the way we are doing something wrong, and we can't figure out
+# where. Deniz Celik helped us understand some higher level concepts, and we
+# think we know what is going on conceptually but are getting tripped up in the
+# implementation. We also believe that we have the start of the implementation
+# of ECall, but we don't know where we are supposed to call the substitute
+# method and we've run out of time.
 
 #
 # Expressions
@@ -109,6 +115,7 @@ class ELet (Exp):
         newA = self._exp
         for x in self._bindings:
             newA = newA.substitute(x[0], x[1])
+        print
 
         return newA.eval(prim_dict)
 
@@ -131,79 +138,51 @@ class ELetS (Exp):
         return "ELet({},{})".format(self._bindings, self._exp)
 
     def eval (self,prim_dict):
-        if len(self._bindings) > 1:
-            new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
-            return ELetS(self._bindings[1:], new_exp).eval(prim_dict)
+        newA = self._exp
+        for x in self._bindings:
+            newA = newA.substitute(x[0], x[1])
+        print
 
-        new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
+        return newA.eval(prim_dict)
 
-        return new_exp.eval(prim_dict)
+    def substitute (self, id, new_e):
+        print self._bindings
+        bindings = self._bindings
 
-    def substitute (self,id,new_e):
-        if id == self._bindings[0][0]:
-            return ELetS([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],self._exp)
+        for index, binding in enumerate(bindings):
+            if id == binding[0]:
+                return ELet(bindings, new_e)
+            bindings[index] = (bindings[index][0],bindings[index][1].substitute(id,new_e))
 
-        return ELetS([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],
-                        self._exp.substitute(id, new_e))
-
-
-        # print "+++++++++++++++"
-        # print self._bindings
-        # arr = []
-        # for binding in self._bindings:
-        #     print binding[0]
-        #     print binding[1].eval({
-        #         "+": oper_plus,
-        #         "*": oper_times,
-        #         "-": oper_minus,
-        #         "zero?": oper_zero
-        #     }).value
-        #     if id == binding[0]:
-        #         pass
-            # else:
-            #     arr.append((binding[0], binding[1].substitute(id, new_e)))
-
-        return ELetS(arr, self._exp)
+        return ELetS(bindings, self._exp)
 
 
 class ELetV (Exp):
     # local binding
 
-    def __init__ (self, bind_list, exp):
-        self._bindings = bind_list
-        self._exp = exp
+    def __init__ (self, id, e1, e2):
+        self._id = id
+        self._e1 = e1
+        self._e2 = e2
 
     def __str__ (self):
-        return "ELet({},{})".format(self._bindings, self._exp)
+        return "ELet({},{},{})".format(self._id, self._e1, self._e2)
 
     def eval (self,prim_dict):
-        newA = self._exp
-        for x in self._bindings:
-            newA = newA.substitute(x[0], x[1])
+        v = self._e1.eval(prim_dict)
+        if v.type == "integer":
+            new_e2 = self._e2.substitute(self._id, EInteger(v.value))
 
-        return newA.eval(prim_dict)
-        # if len(self._bindings) > 1:
-        #     new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
-        #     return ELet(self._bindings[1:], new_exp).eval(prim_dict)
-        #
-        # print "_______________"
-        #
-        # print self._bindings
-        #
-        #
-        # new_exp = self._exp.substitute(self._bindings[0][0], self._bindings[0][1])
-        #
-        # print new_exp
-        #
-        # return new_exp.eval(prim_dict)
+        return new_e2.eval(prim_dict)
 
     def substitute (self,id,new_e):
-
-        if id == self._bindings[0][0]:
-            return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],self._exp)
-
-        return ELet([(self._bindings[0][0], self._bindings[0][1].substitute(id, new_e))],
-                        self._exp.substitute(id, new_e))
+        if id == self._id:
+            return ELetV(self._id,
+                        self._e1.substitute(id,new_e),
+                        self._e2)
+        return ELetV(self._id,
+                    self._e1.substitute(id,new_e),
+                    self._e2.substitute(id,new_e))
 
 
 class EId (Exp):
@@ -216,7 +195,6 @@ class EId (Exp):
         return "EId({})".format(self._id)
 
     def eval (self,prim_dict):
-        print self._id
         raise Exception("Runtime error: unknown identifier {}".format(self._id))
 
     def substitute (self,id,new_e):
@@ -224,6 +202,44 @@ class EId (Exp):
             return new_e
         return self
 
+
+class ECall (Exp):
+    # expression node
+
+    def __init__ (self, name, es):
+        self._name = name
+        self._exps = es
+
+    def __str__ (self):
+        return "EPrimCall({},[{}])".format(self._name,",".join([ str(e) for e in self._exps]))
+
+    def eval (self, prim_dict, fun_dict):
+        bindings = []
+        for index, id in enumerate(self._exps):
+            bindings.append((fun_dict[self._name]["params"][index],id))
+
+        return ELet(bindings, fun_dict[self._name]["body"]).eval(prim_dict)
+
+    def substitute (self, id, new_e):
+        new_es = [e.substitute(id,new_e) for e in self._exps]
+        return ECall(self._name, new_es)
+
+
+
+class EValue (Exp):
+    # value operator
+
+    def __init__ (self,val):
+        self._val = val
+
+    def __str__ (self):
+        return "EValue({})".format(self._val)
+
+    def eval (self, prim_dict):
+        return self._val
+
+    def substitute (self, id, new_e):
+        return self
 
 
 #
@@ -245,8 +261,6 @@ class VBoolean (Value):
     def __init__ (self,b):
         self.value = b
         self.type = "boolean"
-
-
 
 
 
@@ -286,15 +300,15 @@ FUN_DICT = {
   "square": {"params":["x"],
              "body":EPrimCall("*",[EId("x"),EId("x")])},
   "=": {"params":["x","y"],
-        "body":EPrimCall("zero?",[EPrimCall("-",[EId("x"),EId("y")])])}
-  # "+1": {"params":["x"],
-  #        "body":EPrimCall("+",[EId("x"),EValue(VInteger(1))])},
-  # "sum_from_to": {"params":["s","e"],
-  #                 "body":EIf(ECall("=",[EId("s"),EId("e")]),
-  #                            EId("s"),
-  #                            EPrimCall("+",[EId("s"),
-  #                                           ECall("sum_from_to",[ECall("+1",[EId("s")]),
-  #                                                                EId("e")])]))}
+        "body":EPrimCall("zero?",[EPrimCall("-",[EId("x"),EId("y")])])},
+  "+1": {"params":["x"],
+         "body":EPrimCall("+",[EId("x"),EValue(VInteger(1))])},
+  "sum_from_to": {"params":["s","e"],
+                  "body":EIf(ECall("=",[EId("s"),EId("e")]),
+                             EId("s"),
+                             EPrimCall("+",[EId("s"),
+                                            ECall("sum_from_to",[ECall("+1",[EId("s")]),
+                                                                 EId("e")])]))}
 }
 
 #
@@ -302,6 +316,7 @@ FUN_DICT = {
 #
 
 if __name__ == '__main__':
+    # ELet
     # print ELet([("a",EInteger(99))],EId("a")).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99)), ("b",EInteger(66))],EId("a")).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99)), ("b",EInteger(66))],EId("b")).eval(INITIAL_PRIM_DICT).value
@@ -314,7 +329,7 @@ if __name__ == '__main__':
     # print ELetS([("a",EInteger(99)),("b",EInteger(66))],EId("a")).eval(INITIAL_PRIM_DICT).value
     # print ELetS([("a",EInteger(99)),("b",EInteger(66))],EId("b")).eval(INITIAL_PRIM_DICT).value
     # print ELet([("a",EInteger(99))],ELetS([("a",EInteger(66)),("b",EId("a"))],EId("a"))).eval(INITIAL_PRIM_DICT).value
-    print ELet([("a",EInteger(99))],ELetS([("a",EInteger(66)),("b",EId("a"))],EId("b"))).eval(INITIAL_PRIM_DICT).value
+    # print ELet([("a",EInteger(99))],ELetS([("a",EInteger(66)),("b",EId("a"))],EId("b"))).eval(INITIAL_PRIM_DICT).value
     # print ELetS([("a",EInteger(5)),("b",EInteger(20))],ELetS([("a",EId("b")),("b",EId("a"))],EPrimCall("-",[EId("a"),EId("b")]))).eval(INITIAL_PRIM_DICT).value
 
     # ELetV
