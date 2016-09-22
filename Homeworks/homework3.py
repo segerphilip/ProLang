@@ -25,7 +25,7 @@ class EValue (Exp):
     # Value literal (could presumably replace EInteger and EBoolean)
     def __init__ (self,v):
         self._value = v
-    
+
     def __str__ (self):
         return "EValue({})".format(self._value)
 
@@ -122,7 +122,6 @@ class ELet (Exp):
     # eager (call-by-avlue)
 
     def __init__ (self,bindings,e2):
-        print bindings
         self._bindings = bindings
         self._e2 = e2
 
@@ -187,7 +186,7 @@ class ECall (Exp):
         return ECall(self._name,new_es)
 
 
-    
+
 #
 # Values
 #
@@ -198,7 +197,7 @@ class Value (object):
 
 class VInteger (Value):
     # Value representation of integers
-    
+
     def __init__ (self,i):
         self.value = i
         self.type = "integer"
@@ -208,7 +207,7 @@ class VInteger (Value):
 
 class VBoolean (Value):
     # Value representation of Booleans
-    
+
     def __init__ (self,b):
         self.value = b
         self.type = "boolean"
@@ -220,7 +219,7 @@ class VBoolean (Value):
 
 # Primitive operations
 
-def oper_plus (v1,v2): 
+def oper_plus (v1,v2):
     if v1.type == "integer" and v2.type == "integer":
         return VInteger(v1.value + v2.value)
     raise Exception ("Runtime error: trying to add non-numbers")
@@ -313,8 +312,7 @@ def parse (input):
     pBINDING.setParseAction(lambda result: (result[1],result[2]))
 
     pLET = "(" + Keyword("let") + "(" + OneOrMore(pBINDING) + ")" + pEXPR + ")"
-    pLET.setParseAction(lambda result: (ELet([result[value] for value in range(3, len(result - 4))],result[len(result) - 2])))
-    # pLET.setParseAction(lambda result: (ELet([result[3]],result[5])))
+    pLET.setParseAction(lambda result: (ELet([result[value] for value in range(3, len(result)-3)],result[len(result) - 2])))
 
     pPLUS = "(" + Keyword("+") + pEXPR + pEXPR + ")"
     pPLUS.setParseAction(lambda result: ECall("+",[result[2],result[3]]))
@@ -351,11 +349,9 @@ sys.setrecursionlimit(10000)
 if __name__ == "__main__":
     shell()
 
-# 
+#
 # Testing code
-# 
+#
 
 # (let ((x 10)) (* x x))
 # (let ((x 10) (y 20)) (* x x))
-
-
