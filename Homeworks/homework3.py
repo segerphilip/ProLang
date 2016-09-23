@@ -10,7 +10,7 @@
 
 
 import sys
-from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, Group, Dict, delimitedList
+from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, oneOf 
 
 
 #
@@ -122,6 +122,8 @@ class ELet (Exp):
     # eager (call-by-avlue)
 
     def __init__ (self,bindings,e2):
+        print bindings
+        print e2
         self._bindings = bindings
         self._e2 = e2
 
@@ -165,6 +167,8 @@ class ECall (Exp):
     # Call a defined function in the function dictionary
 
     def __init__ (self,name,es):
+        print name
+        print es
         self._name = name
         self._exps = es
 
@@ -320,7 +324,10 @@ def parse (input):
     pTIMES = "(" + Keyword("*") + pEXPR + pEXPR + ")"
     pTIMES.setParseAction(lambda result: ECall("*",[result[2],result[3]]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPLUS | pTIMES)
+    pFUNC = "(" + pNAME + OneOrMore(pEXPR) + ")"
+    pFUNC.setParseAction(lambda result: ECall(result[1],[result[2]]))
+
+    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPLUS | pTIMES | pFUNC)
 
     result = pEXPR.parseString(input)[0]
     return result    # the first element of the result is the expression
@@ -353,5 +360,8 @@ if __name__ == "__main__":
 # Testing code
 #
 
-# (let ((x 10)) (* x x))
-# (let ((x 10) (y 20)) (* x x))
+# (let ((x 10) (y 20)) (+ x y))
+# (let ((a (let ((x 1) (y 2)) x)) (b (let ((x 1) (y 2)) y))) (let ((b a) (a b)) a))
+# (let ((a 1) (b 2) (c 3) (d 4) (e 5) (f 6)) f)
+
+# 
