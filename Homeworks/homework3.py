@@ -10,7 +10,7 @@
 
 
 import sys
-from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, oneOf 
+from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, oneOf, Optional
 
 
 #
@@ -167,6 +167,7 @@ class ECall (Exp):
     # Call a defined function in the function dictionary
 
     def __init__ (self,name,es):
+        print "______________"
         print name
         print es
         self._name = name
@@ -325,7 +326,7 @@ def parse (input):
     pTIMES.setParseAction(lambda result: ECall("*",[result[2],result[3]]))
 
     pFUNC = "(" + pNAME + OneOrMore(pEXPR) + ")"
-    pFUNC.setParseAction(lambda result: ECall(result[1],[result[2]]))
+    pFUNC.setParseAction(lambda result: ECall(result[1],result[2:-1]))
 
     pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPLUS | pTIMES | pFUNC)
 
