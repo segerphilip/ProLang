@@ -355,12 +355,96 @@ def shell ():
         v = exp.eval(INITIAL_FUN_DICT)
         print v
 
+def parse_natural (input):
+    # parse_natural a string into an element of the abstract representation
+
+    # Grammar:
+    #
+    # <expr> ::= <integer>
+    #            true
+    #            false
+    #            <identifier>
+    #            ( expr )
+    #            <expr> ? <expr> : <expr>
+    #            let ( <bindings> ) <expr>
+    #            <expr> + <expr>
+    #            <expr> * <expr>
+    #            <expr> - <expr>
+    #            <name> ( <expr-seq> )
+    # 
+    # <bindings> ::= <name> = <expr> , <bindings>
+    #                <name> = <expr>
+    # 
+    # <expr-seq> ::= <expr> , <expr-seq>
+    #                <expr>
+    #
+
+
+    idChars = alphas+"_+*-?!=<>"
+
+    pIDENTIFIER = Word(idChars, idChars+"0123456789")
+    pIDENTIFIER.setParseAction(lambda result: EId(result[0]))
+
+    # A name is like an identifier but it does not return an EId...
+    pNAME = Word(idChars,idChars+"0123456789")
+
+    pINTEGER = Word("-0123456789","0123456789")
+    pINTEGER.setParseAction(lambda result: EInteger(int(result[0])))
+
+    pBOOLEAN = Keyword("true") | Keyword("false")
+    pBOOLEAN.setParseAction(lambda result: EBoolean(result[0]=="true"))
+
+    pEXPR = Forward()
+
+    pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
+    pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
+
+    pBINDING = "(" + pNAME + pEXPR + ")"
+    pBINDING.setParseAction(lambda result: (result[1],result[2]))
+
+    pLET = "(" + Keyword("let") + "(" + OneOrMore(pBINDING) + ")" + pEXPR + ")"
+    pLET.setParseAction(lambda result: (ELet([result[value] for value in range(3, len(result)-3)],result[len(result) - 2])))
+
+    pFUNC = "(" + pNAME + OneOrMore(pEXPR) + ")"
+    pFUNC.setParseAction(lambda result: ECall(result[1],result[2:-1]))
+
+    pPARAMS = OneOrMore(pNAME)
+
+    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pPARAMS + ")" + pEXPR + ")"
+    pDEFUN.setParseAction(lambda result: addToDict(result[2],result[4:len(result)-3],result[-2]))
+
+    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPARAMS | pDEFUN | pFUNC)
+
+    result = pEXPR.parseString(input)[0]
+    return result    # the first element of the result is the expression
+
+
+def shell_natural ():
+    # A simple natural shell
+    # Repeatedly read a line of input, parse it, and evaluate the result
+
+    print "Homework 3 - Calc Language"
+    while True:
+        inp = raw_input("calc> ")
+        if not inp:
+            return
+        if inp == "exit" or inp == "x":
+            return
+        exp = parse(inp)
+        if type(exp) is tuple and exp[0] == "defun":
+            print "Function {} added to functions dictionary".format(exp[1])
+            continue
+        print "Abstract representation:", exp
+        v = exp.eval(INITIAL_FUN_DICT)
+        print v
+
+
 # increase stack size to let us call recursive functions quasi comfortably
 sys.setrecursionlimit(10000)
 
 
 if __name__ == "__main__":
-    shell()
+    shell_natural()
 
 #
 # Testing code
