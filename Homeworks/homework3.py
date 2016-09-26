@@ -167,9 +167,6 @@ class ECall (Exp):
     # Call a defined function in the function dictionary
 
     def __init__ (self,name,es):
-        print "______________"
-        print name
-        print es
         self._name = name
         self._exps = es
 
@@ -271,6 +268,12 @@ INITIAL_FUN_DICT = {
 }
 
 
+# Additional def dictionary
+def addToDict (name, params, body):
+    INITIAL_FUN_DICT[name] = {"params":params, "body":body}
+    return ("defun", name)
+
+
 
 ##
 ## PARSER
@@ -328,7 +331,12 @@ def parse (input):
     pFUNC = "(" + pNAME + OneOrMore(pEXPR) + ")"
     pFUNC.setParseAction(lambda result: ECall(result[1],result[2:-1]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPLUS | pTIMES | pFUNC)
+    pPARAMS = OneOrMore(pNAME)
+
+    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pPARAMS + ")" + pEXPR + ")"
+    pDEFUN.setParseAction(lambda result: addToDict(result[2],result[4:len(result)-3],result[-2]))
+
+    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPLUS | pTIMES | pFUNC | pPARAMS | pDEFUN)
 
     result = pEXPR.parseString(input)[0]
     return result    # the first element of the result is the expression
@@ -346,6 +354,9 @@ def shell ():
         if inp == "exit" or inp == "x":
             return
         exp = parse(inp)
+        if type(exp) is tuple and exp[0] == "defun":
+            print "Function {} added to functions dictionary".format(exp[1])
+            continue
         print "Abstract representation:", exp
         v = exp.eval(INITIAL_FUN_DICT)
         print v
