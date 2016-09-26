@@ -322,12 +322,6 @@ def parse (input):
     pLET = "(" + Keyword("let") + "(" + OneOrMore(pBINDING) + ")" + pEXPR + ")"
     pLET.setParseAction(lambda result: (ELet([result[value] for value in range(3, len(result)-3)],result[len(result) - 2])))
 
-    pPLUS = "(" + Keyword("+") + pEXPR + pEXPR + ")"
-    pPLUS.setParseAction(lambda result: ECall("+",[result[2],result[3]]))
-
-    pTIMES = "(" + Keyword("*") + pEXPR + pEXPR + ")"
-    pTIMES.setParseAction(lambda result: ECall("*",[result[2],result[3]]))
-
     pFUNC = "(" + pNAME + OneOrMore(pEXPR) + ")"
     pFUNC.setParseAction(lambda result: ECall(result[1],result[2:-1]))
 
@@ -336,7 +330,7 @@ def parse (input):
     pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pPARAMS + ")" + pEXPR + ")"
     pDEFUN.setParseAction(lambda result: addToDict(result[2],result[4:len(result)-3],result[-2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPLUS | pTIMES | pFUNC | pPARAMS | pDEFUN)
+    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPARAMS | pDEFUN | pFUNC)
 
     result = pEXPR.parseString(input)[0]
     return result    # the first element of the result is the expression
