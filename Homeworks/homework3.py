@@ -10,7 +10,7 @@
 
 
 import sys
-from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, oneOf, Optional
+from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, oneOf, Optional, ZeroOrMore, Suppress
 
 
 #
@@ -167,6 +167,9 @@ class ECall (Exp):
     # Call a defined function in the function dictionary
 
     def __init__ (self,name,es):
+        print '++++++++++++++++'
+        print name
+        print es
         self._name = name
         self._exps = es
 
@@ -371,10 +374,10 @@ def parse_natural (input):
     #            <expr> * <expr>
     #            <expr> - <expr>
     #            <name> ( <expr-seq> )
-    # 
+    #
     # <bindings> ::= <name> = <expr> , <bindings>
     #                <name> = <expr>
-    # 
+    #
     # <expr-seq> ::= <expr> , <expr-seq>
     #                <expr>
     #
@@ -399,21 +402,27 @@ def parse_natural (input):
     pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
     pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
 
-    pBINDING = "(" + pNAME + pEXPR + ")"
-    pBINDING.setParseAction(lambda result: (result[1],result[2]))
+    pBINDING = pNAME + Keyword("=") + pEXPR
+    pBINDING.setParseAction(lambda result: [(result[0], result[2])])
 
-    pLET = "(" + Keyword("let") + "(" + OneOrMore(pBINDING) + ")" + pEXPR + ")"
-    pLET.setParseAction(lambda result: (ELet([result[value] for value in range(3, len(result)-3)],result[len(result) - 2])))
+    pLET = Keyword("let") + "(" + pBINDING + ")" + pEXPR
+    pLET.setParseAction(lambda result: ELet(result[2], result[-1]))
 
     pFUNC = "(" + pNAME + OneOrMore(pEXPR) + ")"
     pFUNC.setParseAction(lambda result: ECall(result[1],result[2:-1]))
 
     pPARAMS = OneOrMore(pNAME)
 
+    pMINUS = pEXPR + "-" + pEXPR
+    pMINUS.setParseAction(lambda result: ECall("-", [result[0], result[2]]))
+
+    pPLUS = pNAME + "+" + pNAME
+    pPLUS.setParseAction(lambda result: ECall("+", [result[0], result[2]]))
+
     pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pPARAMS + ")" + pEXPR + ")"
     pDEFUN.setParseAction(lambda result: addToDict(result[2],result[4:len(result)-3],result[-2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pPARAMS | pDEFUN | pFUNC)
+    pEXPR << ( pLET | pINTEGER | pBOOLEAN | "(" + pEXPR + ")" | pIDENTIFIER | pMINUS | pIF | pPARAMS | pDEFUN | pFUNC )
 
     result = pEXPR.parseString(input)[0]
     return result    # the first element of the result is the expression
@@ -425,12 +434,12 @@ def shell_natural ():
 
     print "Homework 3 - Calc Language"
     while True:
-        inp = raw_input("calc> ")
+        inp = raw_input("calc-natural> ")
         if not inp:
             return
         if inp == "exit" or inp == "x":
             return
-        exp = parse(inp)
+        exp = parse_natural(inp)
         if type(exp) is tuple and exp[0] == "defun":
             print "Function {} added to functions dictionary".format(exp[1])
             continue
@@ -454,4 +463,4 @@ if __name__ == "__main__":
 # (let ((a (let ((x 1) (y 2)) x)) (b (let ((x 1) (y 2)) y))) (let ((b a) (a b)) a))
 # (let ((a 1) (b 2) (c 3) (d 4) (e 5) (f 6)) f)
 
-# 
+#
