@@ -8,11 +8,17 @@
 # Remarks: We are changing the grammar because we were having problems with pyparsing
 # only looking at the first expression (specifically 1 + 2 would only look at EId(1)).
 # As such, we are redefining it to use parenthesis more liberally.
+# 
+# We spent a lot of time on number 3 but weren't getting our minds around the idea of 
+# changing from using left-recursive to right-recursive. We tried to modify the grammar
+# to use parenthesis as delimeters, but realized that that was pretty much the previous
+# grammar that we were trying to redefine. We were just working in circles without 
+# progress/understanding.
 #
 
 
 import sys
-from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, oneOf, Optional, Suppress, ZeroOrMore, StringEnd
+from pyparsing import Word, Literal,  Keyword, Forward, alphas, alphanums, OneOrMore, oneOf, Optional, Suppress, ZeroOrMore
 
 
 #
@@ -391,7 +397,7 @@ def parse_natural (input):
     pIDENTIFIER.setParseAction(lambda result: EId(result[0]))
 
     # A name is like an identifier but it does not return an EId...
-    pNAME = Word(idChars,idChars+"0123456789") + StringEnd()
+    pNAME = Word(idChars,idChars+"0123456789")
 
     pINTEGER = Word("-0123456789","0123456789")
     pINTEGER.setParseAction(lambda result: EInteger(int(result[0])))
@@ -401,19 +407,11 @@ def parse_natural (input):
 
     pEXPR = Forward()
 
-    pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
-    pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
-
     pBINDING = pNAME + Keyword("=") + pEXPR
     pBINDING.setParseAction(lambda result: (result[0], result[2]))
 
-    pLET = "(" + Keyword("let") + "(" + pBINDING + ")" + "(" + pEXPR + ")" + ")"
-    pLET.setParseAction(lambda result: ELet(result[3], result[-2]))
-
-    pFUNC = pNAME + "(" + pEXPR + ZeroOrMore(Suppress(",") + pEXPR) + ")"
-    pFUNC.setParseAction(lambda result: ECall(result[0],result[2:-1]))
-
-    pPARAMS = OneOrMore(pNAME)
+    pLET = "(" + Keyword("let") + "(" + pBINDING + ZeroOrMore(Suppress(",") + pBINDING) + ")" + "(" + pEXPR + ")" + ")"
+    pLET.setParseAction(lambda result: ELet(result[3:-5], result[-3]))
 
     pMINUS = "(" + pEXPR + Keyword("-") + pEXPR + ")"
     pMINUS.setParseAction(lambda result: ECall("-", [result[1], result[3]]))
@@ -424,10 +422,10 @@ def parse_natural (input):
     pTIMES = "(" + pEXPR + Keyword("*") + pEXPR + ")"
     pTIMES.setParseAction(lambda result: ECall("*", [result[1], result[3]]))
 
-    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pPARAMS + ")" + pEXPR + ")"
-    pDEFUN.setParseAction(lambda result: addToDict(result[2],result[4:len(result)-3],result[-2]))
+    pIF = "(" + pEXPR + Keyword("?") + pEXPR + ":" + pEXPR + ")"
+    pIF.setParseAction(lambda result: EIf(result[1],result[3],result[5]))
 
-    pEXPR << ( pINTEGER | pBOOLEAN | pTIMES | pPLUS | pMINUS | "(" + pEXPR + ")" | pIDENTIFIER | pLET | pIF | pPARAMS | pDEFUN | pFUNC )
+    pEXPR << ( pINTEGER | pBOOLEAN | pTIMES | pPLUS | pMINUS | pLET | "(" + pEXPR + ")" | pIDENTIFIER)
 
     result = pEXPR.parseString(input)[0]
     return result    # the first element of the result is the expression
