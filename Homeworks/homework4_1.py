@@ -1,9 +1,9 @@
 ############################################################
 # HOMEWORK 4
 #
-# Team members: Hannah Twigg-Smith, Philip Seger
+# Team members:
 #
-# Emails: Hannah.Twigg-Smith@students.olin.edu, Philip.Seger@students.olin.edu
+# Emails:
 #
 # Remarks:
 #
@@ -329,7 +329,7 @@ def parse (input):
     pCALL = "(" + pNAME + pEXPRS + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pAND | pLET | pCALL)
+    pEXPR << (pINTEGER | pBOOLEAN | pAND | pIDENTIFIER | pIF | pLET | pCALL)
 
     # can't attach a parse action to pEXPR because of recursion, so let's duplicate the parser
     pTOPEXPR = pEXPR.copy()
@@ -375,8 +375,8 @@ def shell ():
 # increase stack size to let us call recursive functions quasi comfortably
 sys.setrecursionlimit(10000)
 
-
 if __name__ == '__main__':
-    shell()
+  shell()
+
 
 ##shell()
