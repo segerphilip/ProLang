@@ -33,6 +33,9 @@ class EValue (Exp):
     def eval (self,fun_dict):
         return self._value
 
+    def evalEnv (self,fun_dict,env):
+        return self._value
+
     def substitute (self,id,new_e):
         return self
 
