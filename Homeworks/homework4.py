@@ -391,7 +391,26 @@ def parse (input):
     pCALL = "(" + pNAME + pEXPRS + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pAND | pOR | pIDENTIFIER | pIF | pLET | pCALL)
+    def rec_cond():
+        def parseAction(string, loc, tokens):
+            ifs = tokens[3:-2]
+
+            def recurserecurserecurse(conds): #sorry not sorry about the dumb function name
+                if len(conds) == 0:
+                    return EBoolean(False)
+                elif len(conds) == 2:
+                    return EIf(conds[0], conds[1], EBoolean(False))
+
+                return EIf(conds[0], conds[1], recurserecurserecurse(conds[4:]))
+
+            return recurserecurserecurse(ifs)
+
+        return parseAction
+
+    pCOND = "(" + Keyword("cond") + ZeroOrMore("(" + pEXPR + pEXPR + ")") + ")"
+    pCOND.setParseAction(rec_cond())
+
+    pEXPR << (pINTEGER | pBOOLEAN | pAND | pOR | pIDENTIFIER | pIF | pCOND | pLET | pCALL)
 
     # can't attach a parse action to pEXPR because of recursion, so let's duplicate the parser
     pTOPEXPR = pEXPR.copy()
