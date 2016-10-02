@@ -278,6 +278,7 @@ INITIAL_FUN_DICT = {
 # cf http://pyparsing.wikispaces.com/
 
 
+
 def parse (input):
     # parse a string into an element of the abstract representation
 
@@ -315,10 +316,47 @@ def parse (input):
     pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
     pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
 
-    pAND = "(" + Keyword("and") + Optional(pEXPR) + Optional(pEXPR) + ")"
-    pAND.setParseAction(lambda result: EIf(result[2] if 2 < (len(result)-1) else EBoolean(True),
-                                           result[3] if 3 < (len(result)-1) else EBoolean(True),
-                                           EBoolean(False)))
+    def rec_and():
+        def parseAction(string, loc, tokens):
+            statements = tokens[2:-1]
+
+            def recurserecurserecurse(toks): #sorry not sorry about the dumb function name I'M TIRED OKKK??
+                if len(toks) == 0:
+                    return EBoolean(True)
+                elif len(toks) == 1:
+                    return toks[0]
+                elif len(toks) == 2:
+                    return EIf(toks[0], toks[1], EBoolean(False))
+
+                return EIf(toks[0], recurserecurserecurse(toks[1:]), EBoolean(False))
+
+            return recurserecurserecurse(statements)
+
+        return parseAction
+
+    pAND = "(" + Keyword("and") + ZeroOrMore(pEXPR) + ")"
+    pAND.setParseAction(rec_and())
+
+    def rec_or():
+        def parseAction(string, loc, tokens):
+            statements = tokens[2:-1]
+
+            def recurserecurserecurse(toks): #sorry not sorry about the dumb function name
+                if len(toks) == 0:
+                    return EBoolean(False)
+                elif len(toks) == 1:
+                    return toks[0]
+                elif len(toks) == 2:
+                    return EIf(toks[0], EBoolean(True), toks[1])
+
+                return EIf(toks[0], EBoolean(True), recurserecurserecurse(toks[1:]),)
+
+            return recurserecurserecurse(statements)
+
+        return parseAction
+
+    pOR = "(" + Keyword("or") + ZeroOrMore(pEXPR) + ")"
+    pOR.setParseAction(rec_or())
 
     pBINDING = "(" + pNAME + pEXPR + ")"
     pBINDING.setParseAction(lambda result: (result[1],result[2]))
@@ -335,11 +373,19 @@ def parse (input):
     pCALL = "(" + pNAME + pEXPRS + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pAND | pIDENTIFIER | pIF | pLET | pCALL)
+    pEXPR << (pINTEGER | pBOOLEAN | pAND | pOR | pIDENTIFIER | pIF | pLET | pCALL)
 
     # can't attach a parse action to pEXPR because of recursion, so let's duplicate the parser
     pTOPEXPR = pEXPR.copy()
     pTOPEXPR.setParseAction(lambda result: {"result":"expression","expr":result[0]})
+
+
+    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pNAMES + ")" + pEXPR + ")"
+    pDEFUN.setParseAction(lambda result: {"result":"function",
+                                          "name":result[2],
+                                          "params":result[4],
+                                          "body":result[6]})
+
 
     pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pNAMES + ")" + pEXPR + ")"
     pDEFUN.setParseAction(lambda result: {"result":"function",
