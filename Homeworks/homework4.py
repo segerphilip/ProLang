@@ -131,6 +131,8 @@ class ELet (Exp):
         self._e2 = e2
 
     def __str__ (self):
+        print self._bindings
+        print self._e2
         return "ELet([{}],{})".format(",".join([ "({},{})".format(id,str(exp)) for (id,exp) in self._bindings ]),self._e2)
 
     def eval (self,fun_dict):
@@ -364,8 +366,24 @@ def parse (input):
     pBINDINGS = OneOrMore(pBINDING)
     pBINDINGS.setParseAction(lambda result: [ result ])
 
+
+    def rec_let():
+        def parseAction(string, loc, tokens):
+            binds = tokens[3]
+            expr = tokens[-2]
+
+            def recurserecurserecurse(arr, express): #sorry not sorry about the dumb function name
+                if len(arr) == 1:
+                    return ELet(arr, express)
+
+                return ELet([arr[0]], recurserecurserecurse(arr[1:], express))
+
+            return recurserecurserecurse(binds, expr)
+
+        return parseAction
+
     pLET = "(" + Keyword("let") + "(" + pBINDINGS + ")" + pEXPR + ")"
-    pLET.setParseAction(lambda result: ELet(result[3],result[5]))
+    pLET.setParseAction(rec_let())
 
     pEXPRS = ZeroOrMore(pEXPR)
     pEXPRS.setParseAction(lambda result: [result])
