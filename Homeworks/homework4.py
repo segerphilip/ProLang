@@ -52,6 +52,9 @@ class EInteger (Exp):
     def eval (self,fun_dict):
         return VInteger(self._integer)
 
+    def evalEnv (self,fun_dict,env):
+        return VInteger(self._integer)
+
     def substitute (self,id,new_e):
         return self
 
@@ -66,6 +69,9 @@ class EBoolean (Exp):
         return "EBoolean({})".format(self._boolean)
 
     def eval (self,fun_dict):
+        return VBoolean(self._boolean)
+
+    def evalEnv (self,fun_dict,env):
         return VBoolean(self._boolean)
 
     def substitute (self,id,new_e):
@@ -87,6 +93,10 @@ class EPrimCall (Exp):
 
     def eval (self,fun_dict):
         vs = [ e.eval(fun_dict) for e in self._exps ]
+        return apply(self._prim,vs)
+
+    def evalEnv (self,fun_dict,env):
+        vs = [e.evalEnv(fun_dict,env) for e in self._exps]
         return apply(self._prim,vs)
 
     def substitute (self,id,new_e):
@@ -118,6 +128,15 @@ class EIf (Exp):
         else:
             return self._else.eval(fun_dict)
 
+    def evalEnv (self,fun_dict,env):
+        v = self._cond.evalEnv(fun_dict,env)
+        if v.type != "boolean":
+            raise Exception ("Runtime error: condition not a Boolean")
+        if v.value:
+            return self._then.evalEnv(fun_dict,env)
+        else:
+            return self._else.evalEnv(fun_dict,env)
+
     def substitute (self,id,new_e):
         return EIf(self._cond.substitute(id,new_e),
                    self._then.substitute(id,new_e),
@@ -146,6 +165,22 @@ class ELet (Exp):
             new_e2 = new_e2.substitute(id,EValue(v))
         return new_e2.eval(fun_dict)
 
+    def evalEnv (self,fun_dict,env):
+        new_e2 = self._e2
+        for (id,e) in self._bindings:
+            v = e.evalEnv(fun_dict,env)
+            # add to "stack"
+            if id in env:
+                # env[id] = 
+            else:
+                # env[id]
+        result = new_e2.evalEnv(fun_dict,env)
+        for id in range(len(self._bindings)):
+            # remove from "stack"
+            # env[id]
+
+        return result
+
     def substitute (self,id,new_e):
         new_bindings = [ (bid,be.substitute(id,new_e)) for (bid,be) in self._bindings]
         if id in [ bid for (bid,_) in self._bindings]:
@@ -164,6 +199,9 @@ class EId (Exp):
 
     def eval (self,fun_dict):
         raise Exception("Runtime error: unknown identifier {}".format(self._id))
+
+    def evalEnv (self,fun_dict,env):
+        # something
 
     def substitute (self,id,new_e):
         if id == self._id:
@@ -190,6 +228,16 @@ class ECall (Exp):
         for (val,p) in zip(vs,params):
             body = body.substitute(p,EValue(val))
         return body.eval(fun_dict)
+
+    def evalEnv (self,fun_dict,env):
+        vs = [ e.evalEnv(fun_dict,env) for e in self._exps ]
+        params = fun_dict[self._name]["params"]
+        body = fun_dict[self._name]["body"]
+        if len(params) != len(vs):
+            raise Exception("Runtime error: wrong number of argument calling function {}".format(self._name))
+        for (val,p) in zip(vs,params):
+            body = body.substitute(p,EValue(val))
+        return body.evalEnv(fun_dict,env)
 
     def substitute (self,var,new_e):
         new_es = [ e.substitute(var,new_e) for e in self._exps]
@@ -275,6 +323,9 @@ INITIAL_FUN_DICT = {
                                                                # EId("e")])]))}
 }
 
+# Initial env dictionary, which is empty because we add to it as we go
+
+INITIAL_ENV_DICT = {}
 
 
 ##
@@ -464,11 +515,38 @@ def shell ():
             fun_dict[result["name"]] = result
             print "Function {} added to functions dictionary".format(result["name"])
 
+
+def shellEnv():
+    # A less simple shell
+    # Repeatedly read a line of input, parse it, and evalEnv the result
+    print "Homework 4 - Env Calc Language"
+
+    # work on a copy because we'll be adding to it
+    fun_dict = INITIAL_FUN_DICT.copy()
+    env_dict = INITIAL_ENV_DICT.copy()
+
+    while True:
+        inp = raw_input("env_calc> ")
+        if not inp:
+            return
+        result = parse(inp)
+        if result["result"] == "expression":
+            exp = result["expr"]
+            print "Abstract representation:", exp
+            v = exp.evalEnv(fun_dict, env_dict)
+            print v
+        elif result["result"] == "function":
+            # a result is already of the right form to put in the
+            # functions dictionary
+            fun_dict[result["name"]] = result
+            print "Function {} added to functions dictionary".format(result["name"])
+
+
 # increase stack size to let us call recursive functions quasi comfortably
 sys.setrecursionlimit(10000)
 
 
 if __name__ == '__main__':
-    shell()
+    shellEnv()
 
 ##shell()
