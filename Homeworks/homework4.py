@@ -5,7 +5,7 @@
 #
 # Emails: Hannah.Twigg-Smith@students.olin.edu, Philip.Seger@students.olin.edu
 #
-# Remarks:
+# Remarks: Hannah worked on some of this at 2am, so function names might be weird.
 #
 
 
