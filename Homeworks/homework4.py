@@ -170,7 +170,8 @@ class ELet (Exp):
         current_env = env
         for (id, e) in self._bindings:
             v = e.evalEnv(fun_dict, env)
-            env.append((id, EValue(v)))
+            print env
+            env[id] = EValue(v)
             new_e2 = new_e2.substitute(id,EValue(v))
         return new_e2.evalEnv(fun_dict, current_env)
 
