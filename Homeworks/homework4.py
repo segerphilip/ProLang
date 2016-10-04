@@ -167,19 +167,12 @@ class ELet (Exp):
 
     def evalEnv (self,fun_dict,env):
         new_e2 = self._e2
-        for (id,e) in self._bindings:
-            v = e.evalEnv(fun_dict,env)
-            # add to "stack"
-            if id in env:
-                # env[id] = 
-            else:
-                # env[id]
-        result = new_e2.evalEnv(fun_dict,env)
-        for id in range(len(self._bindings)):
-            # remove from "stack"
-            # env[id]
-
-        return result
+        current_env = env
+        for (id, e) in self._bindings:
+            v = e.evalEnv(fun_dict, env)
+            env.append((id, EValue(v)))
+            new_e2 = new_e2.substitute(id,EValue(v))
+        return new_e2.evalEnv(fun_dict, current_env)
 
     def substitute (self,id,new_e):
         new_bindings = [ (bid,be.substitute(id,new_e)) for (bid,be) in self._bindings]
@@ -201,7 +194,7 @@ class EId (Exp):
         raise Exception("Runtime error: unknown identifier {}".format(self._id))
 
     def evalEnv (self,fun_dict,env):
-        # something
+        raise Exception("Runtime error: unknown identifier {}".format(self._id))
 
     def substitute (self,id,new_e):
         if id == self._id:
