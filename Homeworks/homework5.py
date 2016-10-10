@@ -1,9 +1,9 @@
 ############################################################
 # HOMEWORK 5
 #
-# Team members:
+# Team members: Hannah Twigg-Smith, Philip Seger
 #
-# Emails:
+# Emails: Hannah.Twigg-Smith@students.olin.edu, Philip.Seger@students.olin.edu
 #
 # Remarks:
 #
