@@ -24,14 +24,14 @@ class EValue (Exp):
     # Value literal (could presumably replace EInteger and EBoolean)
     def __init__ (self,v):
         self._value = v
-    
+
     def __str__ (self):
         return "EValue({})".format(self._value)
 
     def eval (self,env):
         return self._value
 
-    
+
 class EPrimCall (Exp):
     # Call an underlying Python primitive, passing in Values
     #
@@ -93,37 +93,34 @@ class ECall (Exp):
 
     def __init__ (self,fun,exps):
         self._fun = fun
-        if len(exps) != 1:
-            raise Exception("ERROR: multi-argument ECall not implemented")
-        self._arg = exps[0]
+        self._args = exps
 
     def __str__ (self):
-        return "ECall({},[{}])".format(str(self._fun),str(self._arg))
+        return "ECall({},{})".format(str(self._fun),str(self._args))
 
     def eval (self,env):
         f = self._fun.eval(env)
         if f.type != "function":
             raise Exception("Runtime error: trying to call a non-function")
-        arg = self._arg.eval(env)
-        new_env = [(f.param,arg)] + f.env
+        args = [arg.eval(env) for arg in self._args]
+        new_env = zip(f.params, args) + f.env
         return f.body.eval(new_env)
 
 class EFunction (Exp):
     # Creates an anonymous function
 
     def __init__ (self,params,body):
-        if len(params) != 1:
-            raise Exception("ERROR: multi-argument EFunction not implemented")
-        self._param = params[0]
+        self._params = params
         self._body = body
+        print "SDFHUKJSKJDFHLKSJDHFLSDJKFH"
 
     def __str__ (self):
-        return "EFunction([{}],{})".format(self._param,str(self._body))
+        return "EFunction({},{})".format(self._params,str(self._body))
 
     def eval (self,env):
-        return VClosure(self._param,self._body,env)
+        return VClosure(self._params,self._body,env)
 
-    
+
 #
 # Values
 #
@@ -134,7 +131,7 @@ class Value (object):
 
 class VInteger (Value):
     # Value representation of integers
-    
+
     def __init__ (self,i):
         self.value = i
         self.type = "integer"
@@ -142,10 +139,10 @@ class VInteger (Value):
     def __str__ (self):
         return str(self.value)
 
-    
+
 class VBoolean (Value):
     # Value representation of Booleans
-    
+
     def __init__ (self,b):
         self.value = b
         self.type = "boolean"
@@ -153,26 +150,23 @@ class VBoolean (Value):
     def __str__ (self):
         return "true" if self.value else "false"
 
-    
+
 class VClosure (Value):
-    
+
     def __init__ (self,params,body,env):
-        if len(params) != 1:
-            raise Exception("ERROR: multi-argument VClosure not implemented")
-            
-        self.param = params[0]
+        self.params = params
         self.body = body
         self.env = env
         self.type = "function"
 
     def __str__ (self):
-        return "<function [{}] {}>".format(self.param,str(self.body))
+        return "<function {} {}>".format(self.params,str(self.body))
 
 
 
 # Primitive operations
 
-def oper_plus (v1,v2): 
+def oper_plus (v1,v2):
     if v1.type == "integer" and v2.type == "integer":
         return VInteger(v1.value + v2.value)
     raise Exception ("Runtime error: trying to add non-numbers")
@@ -201,7 +195,7 @@ def initial_env ():
     # A sneaky way to allow functions to refer to functions that are not
     # yet defined at top level, or recursive functions
     env = []
-    base = [ 
+    base = [
         ("+",
          VClosure(["x","y"],EPrimCall(oper_plus,
                                       [EId("x"),EId("y")]),
@@ -303,8 +297,8 @@ def parse (input):
     pCALL = "(" + pEXPR + pEXPR + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],[result[2]]))
 
-    pFUN = "(" + Keyword("function") + "(" + pNAME + ")" + pEXPR + ")"
-    pFUN.setParseAction(lambda result: EFunction(result[3],result[5]))
+    pFUN = "(" + Keyword("function") + "(" + pNAME + ZeroOrMore(pNAME) + ")" + pEXPR + ")"
+    pFUN.setParseAction(lambda result: EFunction(result[3:-4],result[-2]))
 
     pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pFUN | pCALL)
 
@@ -312,11 +306,11 @@ def parse (input):
     pTOPEXPR = pEXPR.copy()
     pTOPEXPR.setParseAction(lambda result: {"result":"expression","expr":result[0]})
 
-    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pNAME + ")" + pEXPR + ")"
+    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pNAME + ZeroOrMore(pNAME) + ")" + pEXPR + ")"
     pDEFUN.setParseAction(lambda result: {"result":"function",
                                           "name":result[2],
-                                          "param":result[4],
-                                          "body":result[6]})
+                                          "params":result[4:-4],
+                                          "body":result[-2]})
     pTOP = (pDEFUN | pTOPEXPR)
 
     result = pTOP.parseString(input)[0]
@@ -333,7 +327,7 @@ def shell ():
 
     ## UNCOMMENT THIS LINE WHEN YOU COMPLETE Q1 IF YOU WANT TO TRY
     ## EXAMPLES
-    ## env = initial_env()
+    env = initial_env()
     while True:
         inp = raw_input("func> ")
 
@@ -360,7 +354,7 @@ def shell ():
             print "Exception: {}".format(e)
 
 
-        
+
 # increase stack size to let us call recursive functions quasi comfortably
 sys.setrecursionlimit(10000)
 
@@ -370,7 +364,7 @@ def initial_env_curry ():
     # A sneaky way to allow functions to refer to functions that are not
     # yet defined at top level, or recursive functions
     env = []
-    base = [ 
+    base = [
         ("+",
          VClosure(["x"],EFunction("y",EPrimCall(oper_plus,
                                               [EId("x"),EId("y")])),
@@ -423,7 +417,7 @@ def shell_curry ():
     print "Homework 5 - Func Language"
     print "#quit to quit"
     env = initial_env_curry()
-    
+
     while True:
         inp = raw_input("func/curry> ")
 
@@ -449,3 +443,6 @@ def shell_curry ():
         except Exception as e:
             print "Exception: {}".format(e)
 
+
+if __name__ == "__main__":
+    shell()
