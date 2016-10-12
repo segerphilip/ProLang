@@ -89,22 +89,21 @@ class EId (Exp):
 
 class ECall (Exp):
     # Call a defined function in the function dictionary
-    # can be pass several arguments, but only handles one
-
     def __init__ (self,fun,exps):
         self._fun = fun
         self._args = exps
 
     def __str__ (self):
-        return "ECall({},{})".format(str(self._fun),str(self._args))
+        return "ECall({},[{}])".format(str(self._fun),",".join([str(arg) for arg in self._args]))
 
     def eval (self,env):
         f = self._fun.eval(env)
         if f.type != "function":
             raise Exception("Runtime error: trying to call a non-function")
-        args = [arg.eval(env) for arg in self._args]
-        new_env = zip(f.params, args) + f.env
+
+        new_env = [(param, arg.eval(env)) for (param, arg) in zip(f.params[0], self._args)] + f.env
         return f.body.eval(new_env)
+
 
 class EFunction (Exp):
     # Creates an anonymous function
@@ -112,10 +111,9 @@ class EFunction (Exp):
     def __init__ (self,params,body):
         self._params = params
         self._body = body
-        print "SDFHUKJSKJDFHLKSJDHFLSDJKFH"
 
     def __str__ (self):
-        return "EFunction({},{})".format(self._params,str(self._body))
+        return "EFunction([{}],{})".format(",".join([str(param) for param in self._params]),str(self._body))
 
     def eval (self,env):
         return VClosure(self._params,self._body,env)
@@ -160,7 +158,7 @@ class VClosure (Value):
         self.type = "function"
 
     def __str__ (self):
-        return "<function {} {}>".format(self.params,str(self.body))
+        return "<function [{}] {}>".format(",".join([str(param) for param in self.params]),str(self.body))
 
 
 
@@ -294,11 +292,11 @@ def parse (input):
     pLET = "(" + Keyword("let") + "(" + pBINDINGS + ")" + pEXPR + ")"
     pLET.setParseAction(lambda result: letUnimplementedError())
 
-    pCALL = "(" + pEXPR + pEXPR + ")"
-    pCALL.setParseAction(lambda result: ECall(result[1],[result[2]]))
+    pCALL = "(" + pEXPR + OneOrMore(pEXPR) + ")"
+    pCALL.setParseAction(lambda result: ECall(result[1],result[2:-1]))
 
-    pFUN = "(" + Keyword("function") + "(" + pNAME + ZeroOrMore(pNAME) + ")" + pEXPR + ")"
-    pFUN.setParseAction(lambda result: EFunction(result[3:-4],result[-2]))
+    pFUN = "(" + Keyword("function") + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
+    pFUN.setParseAction(lambda result: EFunction(result[3:-3],result[-2]))
 
     pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pFUN | pCALL)
 
@@ -306,10 +304,10 @@ def parse (input):
     pTOPEXPR = pEXPR.copy()
     pTOPEXPR.setParseAction(lambda result: {"result":"expression","expr":result[0]})
 
-    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + pNAME + ZeroOrMore(pNAME) + ")" + pEXPR + ")"
+    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
     pDEFUN.setParseAction(lambda result: {"result":"function",
                                           "name":result[2],
-                                          "params":result[4:-4],
+                                          "params":result[4:-3],
                                           "body":result[-2]})
     pTOP = (pDEFUN | pTOPEXPR)
 
@@ -340,6 +338,7 @@ def shell ():
             if result["result"] == "expression":
                 exp = result["expr"]
                 print "Abstract representation:", exp
+                print env
                 v = exp.eval(env)
                 print v
 
@@ -347,7 +346,7 @@ def shell ():
                 # the top-level environment is special, it is shared
                 # amongst all the top-level closures so that all top-level
                 # functions can refer to each other
-                env.insert(0,(result["name"],VClosure([result["param"]],result["body"],env)))
+                env.insert(0,(result["name"],VClosure([result["params"]],result["body"],env)))
                 print "Function {} added to top-level environment".format(result["name"])
 
         except Exception as e:
