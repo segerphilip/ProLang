@@ -101,7 +101,7 @@ class ECall (Exp):
         if f.type != "function":
             raise Exception("Runtime error: trying to call a non-function")
 
-        new_env = [(param, arg.eval(env)) for (param, arg) in zip(f.params[0], self._args)] + f.env
+        new_env = [(param, arg.eval(env)) for (param, arg) in zip(f.params, self._args)] + f.env
         return f.body.eval(new_env)
 
 
@@ -152,6 +152,7 @@ class VBoolean (Value):
 class VClosure (Value):
 
     def __init__ (self,params,body,env):
+
         self.params = params
         self.body = body
         self.env = env
@@ -240,7 +241,7 @@ def initial_env ():
 ##
 # cf http://pyparsing.wikispaces.com/
 
-from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums
+from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, Group
 
 
 def letUnimplementedError ():
@@ -292,8 +293,8 @@ def parse (input):
     pLET = "(" + Keyword("let") + "(" + pBINDINGS + ")" + pEXPR + ")"
     pLET.setParseAction(lambda result: letUnimplementedError())
 
-    pCALL = "(" + pEXPR + OneOrMore(pEXPR) + ")"
-    pCALL.setParseAction(lambda result: ECall(result[1],result[2:-1]))
+    pCALL = "(" + pEXPR + Group(OneOrMore(pEXPR)) + ")"
+    pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
 
     pFUN = "(" + Keyword("function") + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
     pFUN.setParseAction(lambda result: EFunction(result[3:-3],result[-2]))
@@ -338,7 +339,6 @@ def shell ():
             if result["result"] == "expression":
                 exp = result["expr"]
                 print "Abstract representation:", exp
-                print env
                 v = exp.eval(env)
                 print v
 
@@ -346,7 +346,7 @@ def shell ():
                 # the top-level environment is special, it is shared
                 # amongst all the top-level closures so that all top-level
                 # functions can refer to each other
-                env.insert(0,(result["name"],VClosure([result["params"]],result["body"],env)))
+                env.insert(0,(result["name"],VClosure(result["params"],result["body"],env)))
                 print "Function {} added to top-level environment".format(result["name"])
 
         except Exception as e:
