@@ -292,16 +292,11 @@ def parse (input):
 
     def letParse():
         def parseAction(string, loc, tokens):
-            print tokens
-            print "________________"
             variables = []
             values = []
             for binding in tokens[3]:
                 variables.append(binding[0])
                 values.append(binding[1])
-
-            print "____________"
-            print tokens[5]
             return ECall(EFunction(variables, tokens[5]), values)
 
         return parseAction
