@@ -465,19 +465,32 @@ def parse_curry (input):
     pLET = "(" + Keyword("let") + "(" + pBINDINGS + ")" + pEXPR + ")"
     pLET.setParseAction(letParse())
 
-    def callParse():
-        def parseAction(string, loc, tokens):
+    def call_parse(tokens):
+
+        def build_ECall(toks):
+            if len(toks) == 1:
+                return ECall(tokens[1], toks)
+
+            return ECall(build_ECall(toks[:-1]), [toks[-1]])
+
+        return build_ECall(tokens[2])
 
 
     pCALL = "(" + pEXPR + Group(OneOrMore(pEXPR)) + ")"
-    pCALL.setParseAction(callParse())
+    pCALL.setParseAction(call_parse)
 
-    def funParse():
-        def parseAction(string, loc, tokens):
+    def fun_parse(tokens):
 
+        def build_EFunction(toks):
+            if len(toks) == 1:
+                return EFunction(toks, tokens[5])
 
-    pFUN = "(" + Keyword("function") + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
-    pFUN.setParseAction(funParse())
+            return EFunction(toks[0], build_EFunction(toks[1:]))
+
+        return build_EFunction(tokens[3])
+
+    pFUN = "(" + Keyword("function") + "(" + Group(OneOrMore(pNAME)) + ")" + pEXPR + ")"
+    pFUN.setParseAction(fun_parse)
 
     pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pFUN | pCALL)
 
@@ -485,15 +498,18 @@ def parse_curry (input):
     pTOPEXPR = pEXPR.copy()
     pTOPEXPR.setParseAction(lambda result: {"result":"expression","expr":result[0]})
 
-    def defunParse():
-        def parseAction(string, loc, tokens):
-            
+    def defun_parse(tokens):
+        new_tokens = ["(", "function", "(",tokens[4][1:], ")", tokens[6], ")"]
 
-    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
-    pDEFUN.setParseAction(lambda result: {"result":"function",
-                                          "name":result[2],
-                                          "params":result[4:-3],
-                                          "body":result[-2]})
+        return {"result":"function",
+                  "name":tokens[2],
+                  "params":tokens[4][0],
+                  "body":fun_parse(new_tokens)}
+
+
+    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + Group(OneOrMore(pNAME)) + ")" + pEXPR + ")"
+    pDEFUN.setParseAction(defun_parse)
+
     pTOP = (pDEFUN | pTOPEXPR)
 
     result = pTOP.parseString(input)[0]
@@ -525,7 +541,7 @@ def shell_curry ():
                 # the top-level environment is special, it is shared
                 # amongst all the top-level closures so that all top-level
                 # functions can refer to each other
-                env.insert(0,(result["name"],VClosure([result["param"]],result["body"],env)))
+                env.insert(0,(result["name"],VClosure(result["params"],result["body"],env)))
                 print "Function {} added to top-level environment".format(result["name"])
 
         except Exception as e:
