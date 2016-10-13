@@ -108,15 +108,18 @@ class ECall (Exp):
 class EFunction (Exp):
     # Creates an anonymous function
 
-    def __init__ (self,params,body):
+    def __init__ (self,params,body,name=None):
         self._params = params
         self._body = body
+        self._name = name
 
     def __str__ (self):
-        return "EFunction([{}],{})".format(",".join([str(param) for param in self._params]),str(self._body))
+        if self._name:
+            return "EFunction([{}],{})".format(",".join([str(param) for param in self._params]),str(self._body))
+        return "EFunction([{}],{},name={})".format(",".join([str(param) for param in self._params]),str(self._body),str(self._name))
 
     def eval (self,env):
-        return VClosure(self._params,self._body,env)
+        return VClosure(self._params,self._body,env,self._name)
 
 
 #
@@ -151,11 +154,14 @@ class VBoolean (Value):
 
 class VClosure (Value):
 
-    def __init__ (self,params,body,env):
+    def __init__ (self,params,body,env,name=None):
 
         self.params = params
         self.body = body
-        self.env = env
+        if name==None:
+            self.env = env
+        else:
+            self.env = [(name,self)] + env
         self.type = "function"
 
     def __str__ (self):
@@ -305,7 +311,10 @@ def parse (input):
     pFUN = "(" + Keyword("function") + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
     pFUN.setParseAction(lambda result: EFunction(result[3:-3],result[-2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pFUN | pCALL)
+    pFUNNAME = "(" + Keyword("function") + pNAME + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
+    pFUNNAME.setParseAction(lambda result: EFunction(result[4:-3],result[-2],result[2]))
+
+    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pFUN | pFUNNAME | pCALL)
 
     # can't attach a parse action to pEXPR because of recursion, so let's duplicate the parser
     pTOPEXPR = pEXPR.copy()
@@ -548,5 +557,21 @@ def shell_curry ():
             print "Exception: {}".format(e)
 
 
+def question3Test():
+    # a
+    e = EFunction(["n"],
+                  EIf(ECall(EId("zero?"),[EId("n")]),
+              EValue(VInteger(0)),
+              ECall(EId("+"),[EId("n"),
+                              ECall(EId("me"),[ECall(EId("-"),[EId("n"),EValue(VInteger(1))])])])),
+                  name="me")
+    print e
+    f = e.eval(initial_env())
+    print f
+    print ECall(EValue(f),[EValue(VInteger(10))]).eval([]).value
+
+
 if __name__ == "__main__":
-    shell_curry()
+    # question3Test()
+    shell()
+
