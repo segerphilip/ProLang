@@ -290,8 +290,24 @@ def parse (input):
     pBINDINGS = OneOrMore(pBINDING)
     pBINDINGS.setParseAction(lambda result: [ result ])
 
+    def letParse():
+        def parseAction(string, loc, tokens):
+            print tokens
+            print "________________"
+            variables = []
+            values = []
+            for binding in tokens[3]:
+                variables.append(binding[0])
+                values.append(binding[1])
+
+            print "____________"
+            print tokens[5]
+            return ECall(EFunction(variables, tokens[5]), values)
+
+        return parseAction
+
     pLET = "(" + Keyword("let") + "(" + pBINDINGS + ")" + pEXPR + ")"
-    pLET.setParseAction(lambda result: letUnimplementedError())
+    pLET.setParseAction(letParse())
 
     pCALL = "(" + pEXPR + Group(OneOrMore(pEXPR)) + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
