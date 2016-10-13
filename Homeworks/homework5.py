@@ -409,7 +409,95 @@ def initial_env_curry ():
 
 
 def parse_curry (input):
-    raise Exception ("ERROR: parse_curry not implemented")
+    # parse a string into an element of the abstract representation
+
+    # Grammar:
+    #
+    # <expr> ::= <integer>
+    #            true
+    #            false
+    #            <identifier>
+    #            ( if <expr> <expr> <expr> )
+    #            ( let ( ( <name> <expr> ) ) <expr )
+    #            (function ( <name> ) <expr> )
+    #            ( <expr> <expr> )
+    #
+    # <definition> ::= ( defun <name> ( <name> ) <expr> )
+    #
+
+
+    idChars = alphas+"_+*-~/?!=<>"
+
+    pIDENTIFIER = Word(idChars, idChars+"0123456789")
+    pIDENTIFIER.setParseAction(lambda result: EId(result[0]))
+
+    # A name is like an identifier but it does not return an EId...
+    pNAME = Word(idChars,idChars+"0123456789")
+
+    pINTEGER = Word("0123456789")
+    pINTEGER.setParseAction(lambda result: EValue(VInteger(int(result[0]))))
+
+    pBOOLEAN = Keyword("true") | Keyword("false")
+    pBOOLEAN.setParseAction(lambda result: EValue(VBoolean(result[0]=="true")))
+
+    pEXPR = Forward()
+
+    pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
+    pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
+
+    pBINDING = "(" + pNAME + pEXPR + ")"
+    pBINDING.setParseAction(lambda result: (result[1],result[2]))
+
+    pBINDINGS = OneOrMore(pBINDING)
+    pBINDINGS.setParseAction(lambda result: [ result ])
+
+    def letParse():
+        def parseAction(string, loc, tokens):
+            variables = []
+            values = []
+            for binding in tokens[3]:
+                variables.append(binding[0])
+                values.append(binding[1])
+            return ECall(EFunction(variables, tokens[5]), values)
+
+        return parseAction
+
+    pLET = "(" + Keyword("let") + "(" + pBINDINGS + ")" + pEXPR + ")"
+    pLET.setParseAction(letParse())
+
+    def callParse():
+        def parseAction(string, loc, tokens):
+
+
+    pCALL = "(" + pEXPR + Group(OneOrMore(pEXPR)) + ")"
+    pCALL.setParseAction(callParse())
+
+    def funParse():
+        def parseAction(string, loc, tokens):
+
+
+    pFUN = "(" + Keyword("function") + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
+    pFUN.setParseAction(funParse())
+
+    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pLET | pFUN | pCALL)
+
+    # can't attach a parse action to pEXPR because of recursion, so let's duplicate the parser
+    pTOPEXPR = pEXPR.copy()
+    pTOPEXPR.setParseAction(lambda result: {"result":"expression","expr":result[0]})
+
+    def defunParse():
+        def parseAction(string, loc, tokens):
+            
+
+    pDEFUN = "(" + Keyword("defun") + pNAME + "(" + OneOrMore(pNAME) + ")" + pEXPR + ")"
+    pDEFUN.setParseAction(lambda result: {"result":"function",
+                                          "name":result[2],
+                                          "params":result[4:-3],
+                                          "body":result[-2]})
+    pTOP = (pDEFUN | pTOPEXPR)
+
+    result = pTOP.parseString(input)[0]
+    return result    # the first element of the result is the expression
 
 
 def shell_curry ():
@@ -445,4 +533,4 @@ def shell_curry ():
 
 
 if __name__ == "__main__":
-    shell()
+    shell_curry()
