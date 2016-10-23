@@ -203,8 +203,8 @@ class EFor (Exp):
         return "EFor({};{};{}){{}}".format(str(self.init),str(self.cond),str(self.incr),str(self.exp))
 
     def eval (self,env):
-        c = self._cond.eval(env)
         self._init.eval(env)
+        c = self._cond.eval(env)
         if c.type != "boolean":
             raise Exception ("Runtime error: while condition not a Boolean")
         while c.value:
