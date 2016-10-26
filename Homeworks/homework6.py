@@ -239,6 +239,17 @@ class VInteger (Value):
         return str(self.value)
 
 
+class VString (Value):
+    # Value representation of strings
+
+    def __init__ (self,i):
+        self.value = i
+        self.type = "string"
+
+    def __str__ (self):
+        return self.value
+
+
 class VBoolean (Value):
     # Value representation of Booleans
 
@@ -323,7 +334,40 @@ def oper_print (v1):
     print v1
     return VNone()
 
+def oper_length (v1):
+    if v1.type == "string":
+        return VInteger(len(v1.value))
+    raise Exception ("Runtime error: type error in length")
 
+def oper_substring (v1,v2,v3):
+    if v1.type == "string" and v2.type == "integer" and v3.type == "integer":
+        return VString(v1.value[v2.value:v3.value])
+    raise Exception ("Runtime error: type error in substring")
+
+def oper_concat (v1,v2):
+    if v1.type == "string" and v2.type == "string":
+        return VString(v1.value+v2.value)
+    raise Exception ("Runtime error: type error in concat")
+
+def oper_startswith (v1,v2):
+    if v1.type == "string" and v2.type == "string":
+        return VBoolean(v1.value[:len(v2.value)]==v2.value)
+    raise Exception ("Runtime error: type error in startswith")
+
+def oper_endswith (v1,v2):
+    if v1.type == "string" and v2.type == "string":
+        return VBoolean(v1.value[-len(v2.value):]==v2.value)
+    raise Exception ("Runtime error: type error in endswith")
+
+def oper_lower (v1):
+    if v1.type == "string":
+        return VString(v1.value.lower())
+    raise Exception ("Runtime error: type error in lower")
+
+def oper_upper (v1):
+    if v1.type == "string":
+        return VString(v1.value.upper())
+    raise Exception ("Runtime error: type error in upper")
 
 ############################################################
 # IMPERATIVE SURFACE SYNTAX
@@ -336,7 +380,7 @@ def oper_print (v1):
 ##
 # cf http://pyparsing.wikispaces.com/
 
-from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, NoMatch, Group
+from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, NoMatch, Group, QuotedString, WordEnd, originalTextFor, printables
 
 
 def initial_env_imp ():
@@ -367,6 +411,45 @@ def initial_env_imp ():
                ("neq",
                 VRefCell(VClosure(["x","y"],
                                   EPrimCall(oper_neq,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               ("length",
+                VRefCell(VClosure(["x"],
+                                  EPrimCall(oper_length,[EId("x")]),
+                                  env))))
+    env.insert(0,
+               ("substring",
+                VRefCell(VClosure(["x","y","z"],
+                                  EPrimCall(oper_substring,[EId("x"),EId("y"),EId("z")]),
+                                  env))))
+    env.insert(0,
+               ("concat",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_concat,[EId("x"),EId("y")]),
+                                  env))))
+
+    env.insert(0,
+               ("startswith",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_startswith,[EId("x"),EId("y")]),
+                                  env))))
+
+    env.insert(0,
+               ("endswith",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_endswith,[EId("x"),EId("y")]),
+                                  env))))
+
+    env.insert(0,
+               ("lower",
+                VRefCell(VClosure(["x"],
+                                  EPrimCall(oper_lower,[EId("x")]),
+                                  env))))
+
+    env.insert(0,
+               ("upper",
+                VRefCell(VClosure(["x"],
+                                  EPrimCall(oper_upper,[EId("x")]),
                                   env))))
     return env
 
@@ -416,6 +499,9 @@ def parse_imp (input):
     pINTEGER = Word("0123456789")
     pINTEGER.setParseAction(lambda result: EValue(VInteger(int(result[0]))))
 
+    pSTRING = QuotedString('"')
+    pSTRING.setParseAction(lambda result: EValue(VString(result[0])))
+
     pBOOLEAN = Keyword("true") | Keyword("false")
     pBOOLEAN.setParseAction(lambda result: EValue(VBoolean(result[0]=="true")))
 
@@ -437,7 +523,7 @@ def parse_imp (input):
     pCALL = "(" + pEXPR + pEXPRS + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pIDENTIFIER | pIF | pFUN | pCALL)
+    pEXPR << (pINTEGER | pBOOLEAN | pSTRING | pIDENTIFIER | pIF | pFUN | pCALL)
 
     pDECL_VAR = "var" + pNAME + "=" + pEXPR + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1],result[3]))
