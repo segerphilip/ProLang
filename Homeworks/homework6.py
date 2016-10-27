@@ -112,7 +112,7 @@ class ECall (Exp):
 
     def __init__ (self,fun,exps):
         self._fun = fun
-        self._args = exps
+        self._args = [exp for exp in exps if exp!=","]
 
     def __str__ (self):
         return "ECall({},[{}])".format(str(self._fun),",".join(str(e) for e in self._args))
@@ -132,7 +132,7 @@ class EFunction (Exp):
     # Creates an anonymous function
 
     def __init__ (self,params,body):
-        self._params = params
+        self._params = [param for param in params if param!=","]
         self._body = body
 
     def __str__ (self):
@@ -380,7 +380,7 @@ def oper_upper (v1):
 ##
 # cf http://pyparsing.wikispaces.com/
 
-from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, NoMatch, Group, QuotedString, WordEnd, originalTextFor, printables
+from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, NoMatch, Group, QuotedString, Suppress, Optional
 
 
 def initial_env_imp ():
@@ -514,7 +514,7 @@ def parse_imp (input):
     pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
 
     def mkFunBody (params,body):
-        bindings = [ (p,ERefCell(EId(p))) for p in params ]
+        bindings = [ (p,ERefCell(EId(p))) for p in params if p!=","]
         return ELet(bindings,body)
 
     pFUN = "(" + Keyword("function") + "(" + pNAMES + ")" + pEXPR + ";" + ")"
@@ -528,14 +528,17 @@ def parse_imp (input):
     pDECL_VAR = "var" + pNAME + "=" + pEXPR + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1],result[3]))
 
+    pSTMT = Forward()
+
+    pDECL_PRCDR = "procedure" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pSTMT
+    pDECL_PRCDR.setParseAction(lambda result: (result[1], EFunction(result[3], mkFunBody(result[3], result[5]))))
+
     # hack to get pDECL to match only PDECL_VAR (but still leave room
     # to add to pDECL later)
-    pDECL = ( pDECL_VAR | NoMatch() )
+    pDECL = ( pDECL_VAR | pDECL_PRCDR | NoMatch() )
 
     pDECLS = ZeroOrMore(pDECL)
     pDECLS.setParseAction(lambda result: [result])
-
-    pSTMT = Forward()
 
     pSTMT_IF_1 = "if" + pEXPR + pSTMT + "else" + pSTMT
     pSTMT_IF_1.setParseAction(lambda result: EIf(result[1],result[2],result[4]))
@@ -552,6 +555,7 @@ def parse_imp (input):
     pSTMT_UPDATE = pNAME + "<-" + pEXPR + ";"
     pSTMT_UPDATE.setParseAction(lambda result: EPrimCall(oper_update,[EId(result[0]),result[2]]))
 
+
     pSTMTS = ZeroOrMore(pSTMT)
     pSTMTS.setParseAction(lambda result: [result])
 
@@ -566,7 +570,10 @@ def parse_imp (input):
     pSTMT_FOR = "for" + pDECL_VAR + pCALL + ";" + pSTMT_UPDATE + pSTMT
     pSTMT_FOR.setParseAction(lambda result: EFor(result[1], result[2], result[4], result[5]))
 
-    pSTMT << ( pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_UPDATE |  pSTMT_BLOCK )
+    pSTMT_PRCDR = pEXPR + "(" + Group(ZeroOrMore(pEXPR + Optional(","))) + ")" + ";"
+    pSTMT_PRCDR.setParseAction(lambda result: ECall(result[0], result[2]))
+
+    pSTMT << ( pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_UPDATE | pSTMT_PRCDR | pSTMT_BLOCK )
 
     # can't attach a parse action to pSTMT because of recursion, so let's duplicate the parser
     pTOP_STMT = pSTMT.copy()
