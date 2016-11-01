@@ -219,6 +219,37 @@ class EFor (Exp):
         return VNone()
 
 
+class EArray (Exp):
+
+    def __init__ (self, length):
+        self._length = length
+
+    def __str__(self):
+        return "EArray({})".format(str(self._length))
+
+    def eval (self, env):
+        v_length = self._length.eval(env)
+        return VArray(v_length.value)
+
+
+class EWith (Exp):
+
+    def __init__ (self,obj,expr):
+
+        self._object = obj
+        self._exp = expr
+
+    def __str__ (self):
+        return "EWith({},{})".format(str(self._object),str(self._exp))
+
+    def eval (self,env):
+        ob = self._object.eval(env)
+        if ob.type != "object" and ob.type != "array":
+            raise Exception("Runtime error: expected an object")
+        specific_env = ob.methods + env
+        print "KJDHKDSJFH"
+        print self._exp
+        return self._exp.eval(specific_env)
 
 #
 # Values
@@ -273,6 +304,58 @@ class VClosure (Value):
         return "<function [{}] {}>".format(",".join(self.params),str(self.body))
 
 
+class VArray (Value):
+
+    def __init__ (self,length):
+        self.length = length
+        self.value = [VNone() for item in range(length)]
+
+        self.type = "array"
+        self.methods = [
+                ("index",
+                VRefCell(VClosure(["x"],
+                                    EPrimCall(self.oper_index,[EId("x")]),
+                                    self))),
+                ("length",
+                VRefCell(VClosure([],
+                                    EPrimCall(self.oper_length,[]),
+                                    self))),
+                ("map",
+                VRefCell(VClosure(["x"],
+                                    EPrimCall(self.oper_map,[EId("x")]),
+                                    self))),
+                ("swap",
+                VRefCell(VClosure(["x","y"],
+                                    EPrimCall(self.oper_swap,[EId("x"),EId("y")]),
+                                    self)))
+                ]
+
+    def __str__ (self):
+        b = [thing.value for thing in self.value]
+        return str(b)
+
+    def oper_length(self):
+        return VInteger(len(self.content))
+
+    def oper_index(self, i):
+        if i.type == "integer":
+            return self.content[i.value]
+        raise Exception ("Runtime error: variable is not a integer type")
+
+    def oper_swap(self,i1,i2):
+        if i1.type == "integer" and i2.type == "integer":
+            temp = self.content[i1.value]
+            self.content[i1.value] = self.content[i2.value]
+            self.content[i2.value] = temp
+            return VNone()
+        raise Exception ("Runtime error: variable is not a integer type")
+
+    def oper_map(self,function):
+        for i, v in enumerate(self.content):
+            self.content[i] = function.body.eval([(function.params[0], v)] + function.env)
+        return self
+
+
 class VRefCell (Value):
 
     def __init__ (self,initial):
@@ -287,6 +370,7 @@ class VNone (Value):
 
     def __init__ (self):
         self.type = "none"
+        self.value = None
 
     def __str__ (self):
         return "none"
@@ -368,6 +452,17 @@ def oper_upper (v1):
     if v1.type == "string":
         return VString(v1.value.upper())
     raise Exception ("Runtime error: type error in upper")
+
+def oper_arr_update (v1,v2,v3):
+    if v1.type == "ref":
+        v1.content.value[v2.value] = v3
+        return VNone()
+    raise Exception ("Runtime error: updating a non-reference value")
+
+def oper_index (v1, v2):
+    if v1.type == "array" and v2.type =="integer":
+        return VInteger(v1.value[v2.value])
+    raise Exception ("Runtime error: type error in index")
 
 ############################################################
 # IMPERATIVE SURFACE SYNTAX
@@ -451,6 +546,11 @@ def initial_env_imp ():
                 VRefCell(VClosure(["x"],
                                   EPrimCall(oper_upper,[EId("x")]),
                                   env))))
+    env.insert(0,
+               ("arr_update",
+                VRefCell(VClosure(["x","y","z"],
+                                  EPrimCall(oper_arr_update,[EId("x"),EId("y"),EId("z")]),
+                                  env))))
     return env
 
 
@@ -523,7 +623,13 @@ def parse_imp (input):
     pCALL = "(" + pEXPR + pEXPRS + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
 
-    pEXPR << (pINTEGER | pBOOLEAN | pSTRING | pIDENTIFIER | pIF | pFUN | pCALL)
+    pARRAY = "(" + Keyword("new-array") + pEXPR + ")"
+    pARRAY.setParseAction(lambda result: EArray(result[2]))
+
+    pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
+    pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
+
+    pEXPR << (pINTEGER | pWITH | pBOOLEAN | pSTRING | pARRAY | pIDENTIFIER | pIF | pFUN | pCALL )
 
     pDECL_VAR = "var" + pNAME + "=" + pEXPR + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1],result[3]))
@@ -555,6 +661,8 @@ def parse_imp (input):
     pSTMT_UPDATE = pNAME + "<-" + pEXPR + ";"
     pSTMT_UPDATE.setParseAction(lambda result: EPrimCall(oper_update,[EId(result[0]),result[2]]))
 
+    pSTMT_UPDATE_ARRAY = pNAME + "[" + pEXPR + "]" + "<-" + pEXPR + ";"
+    pSTMT_UPDATE_ARRAY.setParseAction(lambda result: EPrimCall(oper_arr_update,[EId(result[0]),result[2],result[5]]))
 
     pSTMTS = ZeroOrMore(pSTMT)
     pSTMTS.setParseAction(lambda result: [result])
@@ -573,7 +681,7 @@ def parse_imp (input):
     pSTMT_PRCDR = pEXPR + "(" + Group(ZeroOrMore(pEXPR + Optional(","))) + ")" + ";"
     pSTMT_PRCDR.setParseAction(lambda result: ECall(result[0], result[2]))
 
-    pSTMT << ( pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_UPDATE | pSTMT_PRCDR | pSTMT_BLOCK )
+    pSTMT << ( pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_UPDATE | pSTMT_UPDATE_ARRAY | pSTMT_PRCDR | pSTMT_BLOCK )
 
     # can't attach a parse action to pSTMT because of recursion, so let's duplicate the parser
     pTOP_STMT = pSTMT.copy()
