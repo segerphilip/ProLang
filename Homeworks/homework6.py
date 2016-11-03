@@ -122,9 +122,13 @@ class ECall (Exp):
         if f.type != "function":
             raise Exception("Runtime error: trying to call a non-function")
         args = [ e.eval(env) for e in self._args]
+        if hasattr(f.env, "type"):
+            if f.env.type == "array":
+                new_env = zip(f.params,args) + f.env.arr_env
         if len(args) != len(f.params):
             raise Exception("Runtime error: argument # mismatch in call")
-        new_env = zip(f.params,args) + f.env
+        else:
+            new_env = zip(f.params,args) + f.env
         return f.body.eval(new_env)
 
 
@@ -227,9 +231,9 @@ class EArray (Exp):
     def __str__(self):
         return "EArray({})".format(str(self._length))
 
-    def eval (self, env):
+    def eval (self,env):
         v_length = self._length.eval(env)
-        return VArray(v_length.value)
+        return VArray(v_length.value,env)
 
 
 class EWith (Exp):
@@ -246,9 +250,7 @@ class EWith (Exp):
         ob = self._object.eval(env)
         if ob.type != "object" and ob.type != "array":
             raise Exception("Runtime error: expected an object")
-        specific_env = ob.methods + env
-        print "KJDHKDSJFH"
-        print self._exp
+        specific_env = ob.arr_env + ob.env + env
         return self._exp.eval(specific_env)
 
 #
@@ -306,54 +308,59 @@ class VClosure (Value):
 
 class VArray (Value):
 
-    def __init__ (self,length):
+    def __init__ (self,length,env):
         self.length = length
         self.value = [VNone() for item in range(length)]
 
         self.type = "array"
-        self.methods = [
+        self.arr_env = [
                 ("index",
                 VRefCell(VClosure(["x"],
-                                    EPrimCall(self.oper_index,[EId("x")]),
+                                    EPrimCall(self.index,[EId("x")]),
                                     self))),
                 ("length",
                 VRefCell(VClosure([],
-                                    EPrimCall(self.oper_length,[]),
+                                    EPrimCall(self.arrlength,[]),
                                     self))),
                 ("map",
                 VRefCell(VClosure(["x"],
-                                    EPrimCall(self.oper_map,[EId("x")]),
+                                    EPrimCall(self.map,[EId("x")]),
                                     self))),
                 ("swap",
                 VRefCell(VClosure(["x","y"],
-                                    EPrimCall(self.oper_swap,[EId("x"),EId("y")]),
+                                    EPrimCall(self.swap,[EId("x"),EId("y")]),
                                     self)))
                 ]
+
+        self.env = self.arr_env + env
 
     def __str__ (self):
         b = [thing.value for thing in self.value]
         return str(b)
 
-    def oper_length(self):
-        return VInteger(len(self.content))
+    def arrlength(self):
+        return VInteger(len(self.value))
 
-    def oper_index(self, i):
+    def index(self, i):
         if i.type == "integer":
-            return self.content[i.value]
-        raise Exception ("Runtime error: variable is not a integer type")
+            return self.value[i.value]
 
-    def oper_swap(self,i1,i2):
-        if i1.type == "integer" and i2.type == "integer":
-            temp = self.content[i1.value]
-            self.content[i1.value] = self.content[i2.value]
-            self.content[i2.value] = temp
-            return VNone()
-        raise Exception ("Runtime error: variable is not a integer type")
+        raise Exception ("Runtime error: type error in array index")
 
-    def oper_map(self,function):
-        for i, v in enumerate(self.content):
-            self.content[i] = function.body.eval([(function.params[0], v)] + function.env)
+    def map(self,function):
+
+        for index, val in enumerate(self.value):
+            self.value[index] = function.body.eval([(function.params[0], val)] + function.env)
         return self
+
+    def swap(self,first,second):
+        if first.type == "integer" and second.type == "integer":
+            r = self.value[first.value]
+            self.value[first.value] = self.value[second.value]
+            self.value[second.value] = r
+            return
+
+        raise Exception ("Runtime error: type error in array swap")
 
 
 class VRefCell (Value):
@@ -629,7 +636,7 @@ def parse_imp (input):
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
 
-    pEXPR << (pINTEGER | pWITH | pBOOLEAN | pSTRING | pARRAY | pIDENTIFIER | pIF | pFUN | pCALL )
+    pEXPR << ( pINTEGER | pWITH | pBOOLEAN | pSTRING | pARRAY | pFUN | pIDENTIFIER | pIF | pCALL )
 
     pDECL_VAR = "var" + pNAME + "=" + pEXPR + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1],result[3]))
