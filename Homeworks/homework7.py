@@ -171,7 +171,7 @@ class ECall (Exp):
     def eval (self,env):
         f = self._fun.eval(env)
         if f.type != "function":
-            raise Exception("Runtime error: trying to call a non-function")
+            raise Exception("Runtime error: trying to call a non-function!")
         args = [ e.eval(env) for e in self._args]
         if hasattr(f.env, "type"):
             if f.env.type == "array":
@@ -438,7 +438,8 @@ class VNone (Value):
 
 def oper_plus (v1,v2):
     if v1.type == "integer" and v2.type == "integer":
-        return VInteger(v1.value + v2.value)
+        hi = VInteger(v1.value + v2.value)
+        return hi
     raise Exception ("Runtime error: trying to add non-numbers")
 
 def oper_minus (v1,v2):
@@ -744,8 +745,33 @@ def parse_imp (input):
 
     pEXPR = Forward()
 
+    pPAREN = "(" + pEXPR + ")"
+    pPAREN.setParseAction(lambda result: result[1])
+
     pEXPRS = ZeroOrMore(pEXPR)
     pEXPRS.setParseAction(lambda result: [result])
+
+    pCALL = "(" + pEXPR + pEXPRS + ")"
+    pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
+
+    pCORE = ( pPAREN | pINTEGER | pSTRING | pBOOLEAN | pCALL | pIDENTIFIER )
+
+    pFACTOR = Forward()
+
+    pTIMES = (pCORE + "*" + pFACTOR)
+    pTIMES.setParseAction(lambda result: EPrimCall(oper_times,[result[0],result[2]]))
+
+    pFACTOR << (pTIMES | pCORE)
+
+    pTERM = Forward()
+
+    pPLUS = (pFACTOR + "+" + pTERM)
+    pPLUS.setParseAction(lambda result: EPrimCall(oper_plus,[result[0],result[2]]))
+
+    pMINUS = (pFACTOR + "-" + pTERM)
+    pMINUS.setParseAction(lambda result: EPrimCall(oper_minus,[result[0],result[2]]))
+
+    pTERM << (pPLUS | pMINUS | pFACTOR)
 
     pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
     pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
@@ -757,16 +783,13 @@ def parse_imp (input):
     pFUN = "(" + Keyword("function") + "(" + pNAMES + ")" + pEXPR + ";" + ")"
     pFUN.setParseAction(lambda result: EFunction(result[3],mkFunBody(result[3],result[5])))
 
-    pCALL = "(" + pEXPR + pEXPRS + ")"
-    pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
-
     pARRAY = "(" + Keyword("new-array") + pEXPR + ")"
     pARRAY.setParseAction(lambda result: EArray(result[2]))
 
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
 
-    pEXPR << ( pINTEGER | pWITH | pBOOLEAN | pSTRING | pARRAY | pFUN | pIDENTIFIER | pIF | pCALL )
+    pEXPR << ( pWITH | pARRAY | pFUN | pIF | pTERM | pCALL )
 
     pDECL_VAR = "var" + pNAME + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1], VNone)) # TODO this declaration as VNone is probably wrong
