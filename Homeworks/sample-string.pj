@@ -1,0 +1,20 @@
+
+def make_string (n,x) {
+    var result = "";
+    while (n > 0) {
+      n = n - 1;
+      result = result + x;
+    }
+    result;
+}
+
+def main () {
+  var x = "this is a string";
+  var y = "hello";
+  var z = "world";
+  print x;
+  print y + z;
+  print y + " " + z;
+  print len(x);
+  print make_string(10,"abc");
+}

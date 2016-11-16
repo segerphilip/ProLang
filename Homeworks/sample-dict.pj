@@ -1,0 +1,16 @@
+
+def main () { 
+
+  var pt = {x:10,y:20,c:"red"};
+
+  print pt;
+  print pt["x"],pt["y"],pt["c"];
+  pt["x"] = 11;
+  pt["y"] = 21;
+  pt["c"] = "blue";
+  print pt;
+  pt["new1"] = [1,2,3];
+  pt["new2"] = {a:1,b:2,c:3};
+  print pt;
+
+}

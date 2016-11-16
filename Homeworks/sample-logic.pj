@@ -1,0 +1,28 @@
+
+var global_number = 10;
+
+def main () {
+    var x = global_number;
+    var y = global_number+1;
+
+    print true;
+    print false;
+    print true and true,true;
+    print false or true,true;
+    print false or false, false;
+
+    print x == y, false;
+    print (x > y), false;
+
+    print x==y,x>y,x>=y,x<y,x<=y,x<>y;
+    print y==x,y>x,y>=x,y<x,y<=x,y<>x;
+    print x==y or x>y, x>=y;
+    print x==y and x>y, false;
+    print not x==y, x<>y;
+    print not true and not false,false;
+    print not true or not false,true;
+    print not false and true, true;
+
+    print true ? true : false, true;
+    print false ? true : false, false;
+}

@@ -9,8 +9,8 @@
 #
 ############################################################
 # Requirements:
-# 
-# 
+#
+#
 # expr ::= integer literal                   # of the form 123 or -456
 #      boolean literal                       # true , false
 #      string literal                        # of the form "xyz"
@@ -26,7 +26,7 @@
 #      expr <> expr                          # this is "not equal" (all types)
 #      expr and expr                         # short-circuiting
 #      expr or expr                          # short-circuiting
-#      not expr                                     
+#      not expr
 #      let ( id = expr , ... ) expr          # local binding
 #      expr ? expr : expr                    # conditional
 #      expr ( expr , ... )                   # function call
@@ -37,7 +37,7 @@
 #      { id : expr , ... }                   # dictionary (record)
 #      expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
 #
-# 
+#
 # vals ::= integers
 #          Booleans
 #          strings
@@ -45,21 +45,21 @@
 #          dictionaries (records)
 #          functions (closures)
 #          None value
-# 
-# 
+#
+#
 # stmt ::= expr ;                            # evaluate expression (drop the result)
 #      id = expr ;                           # assignment to a variable
 #      print expr , ... ;                    # print values (on the same line)
 #      expr [ expr ] = expr ;                # assign to array or dictionary element
 #          if ( expr ) body                  # conditional
 #          if ( expr ) body else body        # conditional
-#      while ( expr ) body                   # loop 
+#      while ( expr ) body                   # loop
 #      for ( id in expr ) body               # iteration over elements of an array
 #
-# 
+#
 # body ::= { decl ... stmt ... }             # zero of more declarations followed by zero or more statements
-# 
-# 
+#
+#
 # decl ::= var id ;
 #          var id = expr ;
 #          def id ( id , ... ) body          # function definition
@@ -456,7 +456,7 @@ def oper_zero (v1):
         return VBoolean(v1.value==0)
     raise Exception ("Runtime error: type error in zero?")
 
-def oper_neq (v1, v2):
+def oper_not_equal (v1, v2):
     if v1.type == "integer" and v2.type == "integer":
         return VBoolean(not (v1.value==v2.value))
     raise Exception ("Runtime error: type error in neq")
@@ -472,8 +472,9 @@ def oper_update (v1,v2):
         return VNone()
     raise Exception ("Runtime error: updating a non-reference value")
 
-def oper_print (v1):
-    print v1
+def oper_print (*v1):
+    for arg in v1:
+        print arg
     return VNone()
 
 def oper_length (v1):
@@ -522,6 +523,45 @@ def oper_index (v1, v2):
         return VInteger(v1.value[v2.value])
     raise Exception ("Runtime error: type error in index")
 
+def oper_not (v1):
+    if v1.type == "boolean":
+        return VBoolean(not v1)
+    raise Exception ("Runtime error: type error in not: condition not a boolean")
+
+def oper_and (v1,v2):
+    if v1.type == "boolean" and v2.type == "boolean":
+        return VBoolean(v1 and v2)
+    raise Exception ("Runtime error: type error in and: condition not a boolean")
+
+def oper_or (v1,v2):
+    if v1.type == "boolean" and v2.type == "boolean":
+        return VBoolean(v1 or v2)
+    raise Exception ("Runtime error: type error in or: condition not a boolean")
+
+def oper_less (v1,v2):
+    # if v1.type == "boolean" and v2.type == "boolean":
+    #     return VBoolean(v1 or v2)
+    # raise Exception ("Runtime error: type error in or: condition not a boolean")
+    pass
+
+def oper_greater (v1,v2):
+    # if v1.type == "boolean" and v2.type == "boolean":
+    #     return VBoolean(v1 or v2)
+    # raise Exception ("Runtime error: type error in or: condition not a boolean")
+    pass
+
+def oper_less_equal (v1,v2):
+    # if v1.type == "boolean" and v2.type == "boolean":
+    #     return VBoolean(v1 or v2)
+    # raise Exception ("Runtime error: type error in or: condition not a boolean")
+    pass
+
+def oper_greater_equal (v1,v2):
+    # if v1.type == "boolean" and v2.type == "boolean":
+    #     return VBoolean(v1 or v2)
+    # raise Exception ("Runtime error: type error in or: condition not a boolean")
+    pass
+
 ############################################################
 # IMPERATIVE SURFACE SYNTAX
 #
@@ -559,11 +599,6 @@ def initial_env_imp ():
                ("zero?",
                 VRefCell(VClosure(["x"],
                                   EPrimCall(oper_zero,[EId("x")]),
-                                  env))))
-    env.insert(0,
-               ("neq",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_neq,[EId("x"),EId("y")]),
                                   env))))
     env.insert(0,
                ("length",
@@ -609,6 +644,46 @@ def initial_env_imp ():
                 VRefCell(VClosure(["x","y","z"],
                                   EPrimCall(oper_arr_update,[EId("x"),EId("y"),EId("z")]),
                                   env))))
+    env.insert(0,
+               ("not",
+                VRefCell(VClosure(["x"],
+                                  EPrimCall(oper_not,[EId("x")]),
+                                  env))))
+    env.insert(0,
+               ("and",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_and,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               ("or",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_or,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               (">",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_greater,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               ("<",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_less,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               (">=",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_greater_equal,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               ("<=",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_less_equal,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               ("<>",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_not_equal,[EId("x"),EId("y")]),
+                                  env))))
     return env
 
 
@@ -635,7 +710,7 @@ def parse_imp (input):
     #      expr [ expr ] = expr ;                # assign to array or dictionary element
     #          if ( expr ) body                  # conditional
     #          if ( expr ) body else body        # conditional
-    #      while ( expr ) body                   # loop 
+    #      while ( expr ) body                   # loop
     #      for ( id in expr ) body               # iteration over elements of an array
     #
     #
@@ -720,10 +795,10 @@ def parse_imp (input):
     pSTMT_ID.setParseAction(lambda result: EPrimCall(oper_update,[EId(result[0]),result[2]]))
 
     #      print expr , ... ;                    # print values (on the same line)
-    pSTMT_PRINT = "print" + pEXPR + ";"
-    pSTMT_PRINT.setParseAction(lambda result: EPrimCall(oper_print,[result[1]]));
+    pSTMT_PRINT = "print" + pEXPR + ZeroOrMore("," + pEXPR) + ";"
+    pSTMT_PRINT.setParseAction(lambda result: EPrimCall(oper_print,[v for (i, v) in enumerate(result) if (i % 2) != 0]));
 
-    #      while ( expr ) body                   # loop 
+    #      while ( expr ) body                   # loop
     pSTMT_WHILE = "while" + pEXPR + pSTMT
     pSTMT_WHILE.setParseAction(lambda result: EWhile(result[1],result[2]))
 

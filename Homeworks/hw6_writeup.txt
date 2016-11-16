@@ -1,0 +1,91 @@
+Question 1: C-Style For Loop
+For loops are written in the following manner:
+for init; condition; increment; statement;
+
+Example:
+imp> for var a = 5; (neq 0 a); a <- (- a 1); print a;
+5
+4
+3
+2
+1
+
+
+Question 2: Strings
+Couldn’t find a way to ignore double quotes in strings without
+escaping them.
+
+Example:
+imp> var foo = "Hello";
+foo defined
+imp> print foo;
+Hello
+imp> print (length foo);
+5
+imp> print (substring foo 3 5);
+lo
+imp> print (startswith foo "He");
+true
+imp> print (startswith foo "he");
+false
+imp> print (endswith foo "llo");
+true
+imp> print (endswith foo "lllo");
+false
+imp> print (lower foo);
+hello
+imp> print (upper foo);
+HELLO
+imp> print (concat foo "bar");
+Hellobar
+imp>
+
+
+Question 3: Procedures
+When a procedure is defined, an EFunction object is created 
+(which evaluates to a VClosure) and stored in the environment
+so it can be evaluated at a later time.
+
+Example:
+imp> procedure test(x) print (+ x 2);
+test defined
+imp> test(9);
+11
+imp> procedure concatenate(x, y) print (concat x y);
+concatenate defined
+imp> concatenate("foo", "bar");
+foobar
+
+
+Question 4: Mutable Arrays
+new-array creates an EArray object which returns a VArray object
+when evaluated. It is initially stored as an array full of VNones
+with the specified length.
+
+Example:
+imp> var arr = (new-array 3);
+arr defined
+imp> print arr;
+[None, None, None]
+imp> arr[0] <- 1;
+imp> arr[1] <- 2;
+imp> arr[2] <- 3;
+imp> print arr;
+[1, 2, 3]
+imp> print (with arr (index 0));
+1
+imp> print (with arr (+ (index 0) (index 1)));
+3
+imp> print (with arr (length));
+3
+imp> print (with arr (swap 1 2));
+None
+imp> print arr;
+[1, 3, 2]
+imp> var foo = (function (bar) (* bar 4););
+foo defined
+imp> print (with arr (map foo));
+[4, 12, 8]
+
+
+

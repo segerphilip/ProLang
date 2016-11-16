@@ -1,0 +1,37 @@
+
+def twice (f) {
+  var nf = fun (x) { f(f(x)); };
+  nf;
+}
+
+def ntimes (f,n) { 
+  var nf = fun (x) { 
+             var result = x;
+             while (n > 0) { 
+               result = f(result);
+               n = n - 1;
+             }
+             result;
+           };
+  nf;
+}
+   
+
+def get_sum () {
+    fun sum (n) { if (n == 0) { 0; } else { n + sum(n-1); } };
+}
+
+
+def main () {
+
+    var square = fun(x) { x * x; };
+    var double = fun(x) { 2 * x; };
+    var triple = fun(f) { ntimes(f,3); };
+    var sum = get_sum();
+
+    print square(10),100;
+    print (twice(square))(2),16;
+    print (ntimes(double,4))(10),160;
+    print (triple(square))(3),6561;
+    print sum(100), 5050;
+}
