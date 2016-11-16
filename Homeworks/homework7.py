@@ -65,6 +65,61 @@
 #          def id ( id , ... ) body          # function definition
 
 
+
+"""
+TODO:
+
+- Fix: subtraction is not left recursive
+- Fix: something weird about logic and not
+- Read main function in a file
+
+expr ::=
+x       integer literal                       # of the form 123 or -456
+x       boolean literal                       # true , false
+x	    string literal                        # of the form "xyz"
+x 	    id                                    # starts with a letter or _
+x	    expr + expr                           # adds integers / concatenates arrays / concatenates strings
+x	    expr * expr
+x	    expr - expr
+	    expr == expr                          # equality (all types)
+	    expr > expr                           # for integers and strings (lexicographic order)
+	    expr >= expr                          # for integers and strings (lexicographic order)
+	    expr < expr                           # for integers and strings (lexicographic order)
+	    expr <= expr                          # for integers and strings (lexicographic order)
+	    expr <> expr                          # this is "not equal" (all types)
+x	    expr and expr                         # short-circuiting
+x	    expr or expr                          # short-circuiting
+x	    not expr
+	    let ( id = expr , ... ) expr          # local binding
+	    expr ? expr : expr                    # conditional
+	    expr ( expr , ... )                   # function call
+x	    ( expr )
+	    [ expr , ... ]                        # creates an array
+	    fun ( id , ... ) body                 # anonymous function
+	    fun id ( id , ... ) body              # recursive anonymous function
+	    { id : expr , ... }                   # dictionary (record)
+	    expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
+
+stmt ::= expr ;                                # evaluate expression (drop the result)
+x       id = expr ;                           # assignment to a variable
+x       print expr , ... ;                    # print values (on the same line)
+	    expr [ expr ] = expr ;                # assign to array or dictionary element
+        if ( expr ) body                      # conditional
+        if ( expr ) body else body            # conditional
+	    while ( expr ) body                   # loop
+	    for ( id in expr ) body               # iteration over elements of an array
+
+body ::= { decl ... stmt ... }         # zero of more declarations followed by zero or more statements
+
+
+decl ::=
+x       var id ;
+x       var id = expr ;
+        def id ( id , ... ) body       # function definition
+
+
+"""
+
 import sys
 
 #
@@ -526,17 +581,17 @@ def oper_index (v1, v2):
 
 def oper_not (v1):
     if v1.type == "boolean":
-        return VBoolean(not v1)
+        return VBoolean(not v1.value)
     raise Exception ("Runtime error: type error in not: condition not a boolean")
 
 def oper_and (v1,v2):
     if v1.type == "boolean" and v2.type == "boolean":
-        return VBoolean(v1 and v2)
+        return VBoolean(v1.value and v2.value)
     raise Exception ("Runtime error: type error in and: condition not a boolean")
 
 def oper_or (v1,v2):
     if v1.type == "boolean" and v2.type == "boolean":
-        return VBoolean(v1 or v2)
+        return VBoolean(v1.value or v2.value)
     raise Exception ("Runtime error: type error in or: condition not a boolean")
 
 def oper_less (v1,v2):
@@ -577,7 +632,7 @@ def oper_greater_equal (v1,v2):
 from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, NoMatch, Group, QuotedString, Suppress, Optional
 
 
-def initial_env_imp ():
+def initial_env_pj ():
     # A sneaky way to allow functions to refer to functions that are not
     # yet defined at top level, or recursive functions
     env = []
@@ -690,7 +745,7 @@ def initial_env_imp ():
 
 
 
-def parse_imp (input):
+def parse_pj (input):
     # parse a string into an element of the abstract representation
 
     # Grammar:
@@ -722,7 +777,9 @@ def parse_imp (input):
     #
 
 
-    idChars = alphas+"_+*-?!=<>"
+    # Don't allow ids to have any characters like +-=*!? because it confuses the
+    # parser when there aren't spaces betwee things
+    idChars = alphas+"_"
 
     pIDENTIFIER = Word(idChars, idChars+"0123456789")
     #### NOTE THE DIFFERENCE
@@ -754,16 +811,25 @@ def parse_imp (input):
     pCALL = "(" + pEXPR + pEXPRS + ")"
     pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
 
-    pCORE = ( pPAREN | pINTEGER | pSTRING | pBOOLEAN | pCALL | pIDENTIFIER )
+    pNOT = (Keyword("not") + pEXPR)
+    pNOT.setParseAction(lambda result: EPrimCall(oper_not, [result[1]]))
+
+    pCORE = ( pPAREN | pNOT | pINTEGER | pSTRING | pBOOLEAN | pCALL | pIDENTIFIER )
 
     pFACTOR = Forward()
 
     pTIMES = (pCORE + "*" + pFACTOR)
     pTIMES.setParseAction(lambda result: EPrimCall(oper_times,[result[0],result[2]]))
 
-    pFACTOR << (pTIMES | pCORE)
+    pAND = (pCORE + Keyword("and") + pFACTOR)
+    pAND.setParseAction(lambda result: EPrimCall(oper_and, [result[0],result[2]]))
+
+    pFACTOR << (pTIMES | pAND | pCORE)
 
     pTERM = Forward()
+
+    pOR = (pCORE + Keyword("or") + pFACTOR)
+    pOR.setParseAction(lambda result: EPrimCall(oper_or, [result[0],result[2]]))
 
     pPLUS = (pFACTOR + "+" + pTERM)
     pPLUS.setParseAction(lambda result: EPrimCall(oper_plus,[result[0],result[2]]))
@@ -771,17 +837,10 @@ def parse_imp (input):
     pMINUS = (pFACTOR + "-" + pTERM)
     pMINUS.setParseAction(lambda result: EPrimCall(oper_minus,[result[0],result[2]]))
 
-    pTERM << (pPLUS | pMINUS | pFACTOR)
+    pTERM << ( pMINUS | pPLUS | pOR | pFACTOR)
 
     pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
     pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
-
-    def mkFunBody (params,body):
-        bindings = [ (p,ERefCell(EId(p))) for p in params if p!=","]
-        return ELet(bindings,body)
-
-    pFUN = "(" + Keyword("function") + "(" + pNAMES + ")" + pEXPR + ";" + ")"
-    pFUN.setParseAction(lambda result: EFunction(result[3],mkFunBody(result[3],result[5])))
 
     pARRAY = "(" + Keyword("new-array") + pEXPR + ")"
     pARRAY.setParseAction(lambda result: EArray(result[2]))
@@ -789,7 +848,7 @@ def parse_imp (input):
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
 
-    pEXPR << ( pWITH | pARRAY | pFUN | pIF | pTERM | pCALL )
+    pEXPR << ( pWITH | pARRAY | pIF | pTERM | pCALL )
 
     pDECL_VAR = "var" + pNAME + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1], VNone)) # TODO this declaration as VNone is probably wrong
@@ -799,12 +858,10 @@ def parse_imp (input):
 
     pSTMT = Forward()
 
-    pDECL_PRCDR = "def" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pSTMT
-    pDECL_PRCDR.setParseAction(lambda result: (result[1], EFunction(result[3], mkFunBody(result[3], result[5]))))
+    pDECL_FUN = "def" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pSTMT
+    pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(result[3], mkFunBody(result[3], result[5]))))
 
-    # hack to get pDECL to match only PDECL_VAR (but still leave room
-    # to add to pDECL later)
-    pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_PRCDR | NoMatch() )
+    pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_FUN | NoMatch() )
 
     pDECLS = ZeroOrMore(pDECL)
     pDECLS.setParseAction(lambda result: [result])
@@ -876,20 +933,20 @@ def parse_imp (input):
     return result    # the first element of the result is the expression
 
 
-def shell_imp ():
+def shell_pj ():
     # A simple shell
     # Repeatedly read a line of input, parse it, and evaluate the result
 
     print "Homework 7"
     print "#quit to quit, #abs to see abstract representation"
-    env = initial_env_imp()
+    env = initial_env_pj()
 
 
     while True:
-        inp = raw_input("imp> ")
+        inp = raw_input("pj> ")
 
         try:
-            result = parse_imp(inp)
+            result = parse_pj(inp)
 
             if result["result"] == "statement":
                 stmt = result["stmt"]
@@ -912,5 +969,41 @@ def shell_imp ():
         except Exception as e:
             print "Exception: {}".format(e)
 
+
+def execute(filename):
+    lines = [line.rstrip('\n') for line in open(filename)]
+    env = initial_env_pj()
+
+    for line in lines:
+        if line != "":
+            try:
+                result = parse_pj(line)
+
+                if result["result"] == "statement":
+                    stmt = result["stmt"]
+                    # print "Abstract representation:", exp
+                    v = stmt.eval(env)
+
+                elif result["result"] == "abstract":
+                    print result["stmt"]
+
+                elif result["result"] == "quit":
+                    return
+
+                elif result["result"] == "declaration":
+                    (name,expr) = result["decl"]
+                    v = expr.eval(env)
+                    env.insert(0,(name,VRefCell(v)))
+                    print "{} defined".format(name)
+
+
+            except Exception as e:
+                print "Exception: {}".format(e)
+
+
 if __name__ == '__main__':
-    shell_imp()
+
+    if len(sys.argv)>1:
+        execute(sys.argv[1])
+        print("done, now here's the shell:")
+    shell_pj()
