@@ -839,7 +839,11 @@ def parse_pj (input):
     pAND = (pCORE + Keyword("and") + pFACTOR)
     pAND.setParseAction(lambda result: EPrimCall(oper_and, [result[0],result[2]]))
 
-    pFACTOR << (pTIMES | pAND | pCORE)
+    pCOND = pCORE + "?" + pEXPR + ":" + pEXPR
+    pCOND.setParseAction(lambda result: EIf(result[0], result[2], result[4]))
+
+    pFACTOR << (pTIMES | pCOND | pAND
+     | pCORE)
 
     pTERM = Forward()
 
@@ -872,16 +876,13 @@ def parse_pj (input):
 
     pTERM << ( pMINUS | pPLUS | pOR | pEQUALITY | pGT | pGEQ | pLT | pLEQ | pNEQ | pFACTOR )
 
-    pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
-    pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
-
     pARRAY = "[" + ZeroOrMore(pEXPR + Suppress(",")) + Optional(pEXPR) + "]"
     pARRAY.setParseAction(lambda result: EArray(result[1:-1]))
 
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
 
-    pEXPR << ( pWITH | pARRAY | pIF | pTERM | pCALL )
+    pEXPR << ( pWITH | pARRAY | pTERM | pCALL )
 
     pDECL_VAR = "var" + pNAME + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1], VNone)) # TODO this declaration as VNone is probably wrong
