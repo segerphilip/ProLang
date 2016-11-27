@@ -1,6 +1,7 @@
 
 var global_number = 10;
 
+#multi
 def main () {
   var x = global_number;
   print x;

@@ -245,6 +245,7 @@ class EFunction (Exp):
     def __init__ (self,params,body):
         self._params = [param for param in params if param!=","]
         self._body = body
+        print body
 
     def __str__ (self):
         return "EFunction([{}],{})".format(",".join(self._params),str(self._body))
@@ -890,10 +891,7 @@ def parse_pj (input):
 
     pSTMT = Forward()
 
-    pDECL_FUN = "def" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pSTMT
-    pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(result[3], mkFunBody(result[3], result[5]))))
-
-    pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_FUN | NoMatch() )
+    pDECL = Forward()
 
     pDECLS = ZeroOrMore(pDECL)
     pDECLS.setParseAction(lambda result: [result])
@@ -901,6 +899,14 @@ def parse_pj (input):
     # stmt ::= expr ;                            # evaluate expression (drop the result)
     pSTMTS = ZeroOrMore(pSTMT) + ";"
     pSTMTS.setParseAction(lambda result: [result])
+
+    pBODY = "{" + pDECLS + pSTMTS + "}"
+    pBODY.setParseAction(lambda result: [result[1], result[2]])
+
+    pDECL_FUN = "def" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pBODY
+    pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(1,2,3)))
+
+    pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_FUN | NoMatch() )
 
     #      id = expr ;                           # assignment to a variable
     pSTMT_ID = pNAME + "=" + pEXPR + ";"
@@ -1037,13 +1043,14 @@ def execute_helper(env, inp):
 
 def execute(filename):
     lines = [line.rstrip('\n') for line in open(filename)]
+    print lines
     env = initial_env_pj()
 
     for line in lines:
         if line != "":
             execute_helper(env,line)
 
-    #execute_helper(env,"main();")
+    # execute_helper(env,"main();")
 
 if __name__ == '__main__':
 
