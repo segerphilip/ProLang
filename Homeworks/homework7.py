@@ -77,37 +77,37 @@ expr ::=
 x       integer literal                       # of the form 123 or -456
 x       boolean literal                       # true , false
 x	    string literal                        # of the form "xyz"
-x 	    id                                    # starts with a letter or _
+x	    id                                    # starts with a letter or _
 x	    expr + expr                           # adds integers / concatenates arrays / concatenates strings
 x	    expr * expr
 x	    expr - expr
-	    expr == expr                          # equality (all types)
-	    expr > expr                           # for integers and strings (lexicographic order)
-	    expr >= expr                          # for integers and strings (lexicographic order)
-	    expr < expr                           # for integers and strings (lexicographic order)
-	    expr <= expr                          # for integers and strings (lexicographic order)
-	    expr <> expr                          # this is "not equal" (all types)
+x       expr == expr                          # equality (all types)
+x       expr > expr                           # for integers and strings (lexicographic order)
+x       expr >= expr                          # for integers and strings (lexicographic order)
+x       expr < expr                           # for integers and strings (lexicographic order)
+x       expr <= expr                          # for integers and strings (lexicographic order)
+x       expr <> expr                          # this is "not equal" (all types)
 x	    expr and expr                         # short-circuiting
 x	    expr or expr                          # short-circuiting
 x	    not expr
-	    let ( id = expr , ... ) expr          # local binding
-	    expr ? expr : expr                    # conditional
-	    expr ( expr , ... )                   # function call
+        let ( id = expr , ... ) expr          # local binding
+        expr ? expr : expr                    # conditional
+        expr ( expr , ... )                   # function call
 x	    ( expr )
-	    [ expr , ... ]                        # creates an array
-	    fun ( id , ... ) body                 # anonymous function
-	    fun id ( id , ... ) body              # recursive anonymous function
-	    { id : expr , ... }                   # dictionary (record)
-	    expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
+        [ expr , ... ]                        # creates an array
+        fun ( id , ... ) body                 # anonymous function
+        fun id ( id , ... ) body              # recursive anonymous function
+        { id : expr , ... }                   # dictionary (record)
+        expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
 
 stmt ::= expr ;                                # evaluate expression (drop the result)
 x       id = expr ;                           # assignment to a variable
 x       print expr , ... ;                    # print values (on the same line)
-	    expr [ expr ] = expr ;                # assign to array or dictionary element
+        expr [ expr ] = expr ;                # assign to array or dictionary element
         if ( expr ) body                      # conditional
         if ( expr ) body else body            # conditional
-	    while ( expr ) body                   # loop
-	    for ( id in expr ) body               # iteration over elements of an array
+        while ( expr ) body                   # loop
+        for ( id in expr ) body               # iteration over elements of an array
 
 body ::= { decl ... stmt ... }         # zero of more declarations followed by zero or more statements
 
@@ -196,6 +196,7 @@ class ELet (Exp):
     def eval (self,env):
         new_env = [ (id,e.eval(env)) for (id,e) in self._bindings] + env
         return self._e2.eval(new_env)
+
 
 class EId (Exp):
     # identifier
@@ -331,15 +332,15 @@ class EFor (Exp):
 
 class EArray (Exp):
 
-    def __init__ (self, length):
-        self._length = length
+    def __init__ (self, content):
+        self._content = content
 
     def __str__(self):
         return "EArray({})".format(str(self._length))
 
     def eval (self,env):
-        v_length = self._length.eval(env)
-        return VArray(v_length.value,env)
+        values = [item.eval(env) for item in self._content]
+        return VArray(values,env)
 
 
 class EWith (Exp):
@@ -414,9 +415,8 @@ class VClosure (Value):
 
 class VArray (Value):
 
-    def __init__ (self,length,env):
-        self.length = length
-        self.value = [VNone() for item in range(length)]
+    def __init__ (self,content,env):
+        self.value = [item for item in content]
 
         self.type = "array"
         self.arr_env = [
@@ -513,7 +513,7 @@ def oper_zero (v1):
     raise Exception ("Runtime error: type error in zero?")
 
 def oper_not_equal (v1, v2):
-    if v1.type == "integer" and v2.type == "integer":
+    if v1.type == v2.type:
         return VBoolean(not (v1.value==v2.value))
     raise Exception ("Runtime error: type error in neq")
 
@@ -595,28 +595,37 @@ def oper_or (v1,v2):
     raise Exception ("Runtime error: type error in or: condition not a boolean")
 
 def oper_less (v1,v2):
-    # if v1.type == "boolean" and v2.type == "boolean":
-    #     return VBoolean(v1 or v2)
-    # raise Exception ("Runtime error: type error in or: condition not a boolean")
-    pass
+    if v1.type == "string" and v2.type == "string":
+         return VBoolean(v1.value < v2.value)
+    if v1.type == "integer" and v2.type == "integer":
+         return VBoolean(v1.value < v2.value)
+    raise Exception ("Runtime error: type error in less: types do not match")
 
 def oper_greater (v1,v2):
-    # if v1.type == "boolean" and v2.type == "boolean":
-    #     return VBoolean(v1 or v2)
-    # raise Exception ("Runtime error: type error in or: condition not a boolean")
-    pass
+    if v1.type == "string" and v2.type == "string":
+         return VBoolean(v1.value > v2.value)
+    if v1.type == "integer" and v2.type == "integer":
+         return VBoolean(v1.value > v2.value)
+    raise Exception ("Runtime error: type error in greater: types do not match")
 
 def oper_less_equal (v1,v2):
-    # if v1.type == "boolean" and v2.type == "boolean":
-    #     return VBoolean(v1 or v2)
-    # raise Exception ("Runtime error: type error in or: condition not a boolean")
-    pass
+    if v1.type == "string" and v2.type == "string":
+         return VBoolean(v1.value <= v2.value)
+    if v1.type == "integer" and v2.type == "integer":
+         return VBoolean(v1.value <= v2.value)
+    raise Exception ("Runtime error: type error in less/equal: types do not match")
 
 def oper_greater_equal (v1,v2):
-    # if v1.type == "boolean" and v2.type == "boolean":
-    #     return VBoolean(v1 or v2)
-    # raise Exception ("Runtime error: type error in or: condition not a boolean")
-    pass
+    if v1.type == "string" and v2.type == "string":
+         return VBoolean(v1.value >= v2.value)
+    if v1.type == "integer" and v2.type == "integer":
+         return VBoolean(v1.value >= v2.value)
+    raise Exception ("Runtime error: type error in greater/equal: types do not match")
+
+def oper_equals (v1,v2):
+    if v1.type == v2.type:
+         return VBoolean(v1.value == v2.value)
+    raise Exception ("Runtime error: type error in equal: types do not match")
 
 ############################################################
 # IMPERATIVE SURFACE SYNTAX
@@ -740,6 +749,11 @@ def initial_env_pj ():
                 VRefCell(VClosure(["x","y"],
                                   EPrimCall(oper_not_equal,[EId("x"),EId("y")]),
                                   env))))
+    env.insert(0,
+               ("==",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_equals,[EId("x"),EId("y")]),
+                                  env))))
     return env
 
 
@@ -837,13 +851,31 @@ def parse_pj (input):
     pMINUS = (pFACTOR + "-" + pTERM)
     pMINUS.setParseAction(lambda result: EPrimCall(oper_minus,[result[0],result[2]]))
 
-    pTERM << ( pMINUS | pPLUS | pOR | pFACTOR)
+    pEQUALITY = (pFACTOR + "==" + pTERM)
+    pEQUALITY.setParseAction(lambda result: EPrimCall(oper_equals, [result[0],result[2]]))
+
+    pGT = (pFACTOR + ">" + pTERM)
+    pGT.setParseAction(lambda result: EPrimCall(oper_greater, [result[0],result[2]]))
+
+    pGEQ = (pFACTOR + ">=" + pTERM)
+    pGEQ.setParseAction(lambda result: EPrimCall(oper_greater_equal, [result[0],result[2]]))
+
+    pLT = (pFACTOR + "<" + pTERM)
+    pLT.setParseAction(lambda result: EPrimCall(oper_less, [result[0],result[2]]))
+
+    pLEQ = (pFACTOR + "<=" + pTERM)
+    pLEQ.setParseAction(lambda result: EPrimCall(oper_less_equal, [result[0],result[2]]))
+
+    pNEQ = (pFACTOR + "<>" + pTERM)
+    pNEQ.setParseAction(lambda result: EPrimCall(oper_not_equal, [result[0],result[2]]))
+
+    pTERM << ( pMINUS | pPLUS | pOR | pEQUALITY | pGT | pGEQ | pLT | pLEQ | pNEQ | pFACTOR )
 
     pIF = "(" + Keyword("if") + pEXPR + pEXPR + pEXPR + ")"
     pIF.setParseAction(lambda result: EIf(result[2],result[3],result[4]))
 
-    pARRAY = "(" + Keyword("new-array") + pEXPR + ")"
-    pARRAY.setParseAction(lambda result: EArray(result[2]))
+    pARRAY = "[" + ZeroOrMore(pEXPR + Suppress(",")) + Optional(pEXPR) + "]"
+    pARRAY.setParseAction(lambda result: EArray(result[1:-1]))
 
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
@@ -941,9 +973,17 @@ def shell_pj ():
     print "#quit to quit, #abs to see abstract representation"
     env = initial_env_pj()
 
-
     while True:
-        inp = raw_input("pj> ")
+        inp = raw_input("imp> ")
+
+        if inp.startswith("#multi"):
+            # multi-line statement
+            line = ""
+            inp = raw_input(".... ")
+            while inp:
+                line += inp + " "
+                inp = raw_input(".... ")
+            inp = line
 
         try:
             result = parse_pj(inp)
@@ -965,9 +1005,34 @@ def shell_pj ():
                 env.insert(0,(name,VRefCell(v)))
                 print "{} defined".format(name)
 
-
         except Exception as e:
             print "Exception: {}".format(e)
+
+
+def execute_helper(env, inp):
+    try:
+        result = parse_pj(inp)
+
+        if result["result"] == "statement":
+            stmt = result["stmt"]
+            # print "Abstract representation:", exp
+            v = stmt.eval(env)
+
+        elif result["result"] == "abstract":
+            print result["stmt"]
+
+        elif result["result"] == "quit":
+            return
+
+        elif result["result"] == "declaration":
+            (name,expr) = result["decl"]
+            v = expr.eval(env)
+            env.insert(0,(name,VRefCell(v)))
+            print "{} defined".format(name)
+
+
+    except Exception as e:
+        print "Exception: {}".format(e)
 
 
 def execute(filename):
@@ -976,30 +1041,9 @@ def execute(filename):
 
     for line in lines:
         if line != "":
-            try:
-                result = parse_pj(line)
+            execute_helper(env,line)
 
-                if result["result"] == "statement":
-                    stmt = result["stmt"]
-                    # print "Abstract representation:", exp
-                    v = stmt.eval(env)
-
-                elif result["result"] == "abstract":
-                    print result["stmt"]
-
-                elif result["result"] == "quit":
-                    return
-
-                elif result["result"] == "declaration":
-                    (name,expr) = result["decl"]
-                    v = expr.eval(env)
-                    env.insert(0,(name,VRefCell(v)))
-                    print "{} defined".format(name)
-
-
-            except Exception as e:
-                print "Exception: {}".format(e)
-
+    #execute_helper(env,"main();")
 
 if __name__ == '__main__':
 
