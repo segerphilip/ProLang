@@ -91,7 +91,7 @@ x	    expr and expr                         # short-circuiting
 x	    expr or expr                          # short-circuiting
 x	    not expr
         let ( id = expr , ... ) expr          # local binding
-        expr ? expr : expr                    # conditional
+x       expr ? expr : expr                    # conditional
         expr ( expr , ... )                   # function call
 x	    ( expr )
         [ expr , ... ]                        # creates an array
@@ -110,12 +110,13 @@ x       print expr , ... ;                    # print values (on the same line)
         for ( id in expr ) body               # iteration over elements of an array
 
 body ::= { decl ... stmt ... }         # zero of more declarations followed by zero or more statements
-
+x
 
 decl ::=
 x       var id ;
 x       var id = expr ;
         def id ( id , ... ) body       # function definition
+    still broken
 
 
 """
@@ -245,7 +246,6 @@ class EFunction (Exp):
     def __init__ (self,params,body):
         self._params = [param for param in params if param!=","]
         self._body = body
-        print body
 
     def __str__ (self):
         return "EFunction([{}],{})".format(",".join(self._params),str(self._body))
@@ -904,7 +904,8 @@ def parse_pj (input):
     pBODY = "{" + pDECLS + pSTMTS + "}"
     pBODY.setParseAction(lambda result: [result[1], result[2]])
 
-    pDECL_FUN = "def" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pBODY
+    pDECL_FUN = "def" + pNAME + "(" + ")" + pBODY
+    # pDECL_FUN = "def" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pBODY
     pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(1,2,3)))
 
     pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_FUN | NoMatch() )
@@ -1044,12 +1045,17 @@ def execute_helper(env, inp):
 
 def execute(filename):
     lines = [line.rstrip('\n') for line in open(filename)]
-    print lines
     env = initial_env_pj()
 
-    for line in lines:
+    for index,line in enumerate(lines):
+        print "ASDFJASDFADS"
+        print line
         if line != "":
             execute_helper(env,line)
+        if line[0:3] == "def":
+            print "".join(lines[index-1:])
+            execute_helper(env,"".join(lines[index-1:]))
+            break
 
     # execute_helper(env,"main();")
 
