@@ -94,7 +94,7 @@ x	    not expr
 x       expr ? expr : expr                    # conditional
         expr ( expr , ... )                   # function call
 x	    ( expr )
-        [ expr , ... ]                        # creates an array
+x       [ expr , ... ]                        # creates an array
         fun ( id , ... ) body                 # anonymous function
         fun id ( id , ... ) body              # recursive anonymous function
         { id : expr , ... }                   # dictionary (record)
@@ -344,6 +344,26 @@ class EArray (Exp):
         return VArray(values,env)
 
 
+class EDict (Exp):
+
+    def __init__ (self, content):
+        self._content = content
+
+    def __str__(self):
+        return "EDict({})".format(str(self._length))
+
+    def eval (self,env):
+        keys = []
+        values = []
+        for index, value in enumerate(self._content):
+            if index % 2 == 0:
+                keys.append(value)
+            else:
+                values.append(value.eval(env))
+
+        return VDict(keys,values,env)
+
+
 class EWith (Exp):
 
     def __init__ (self,obj,expr):
@@ -418,56 +438,25 @@ class VArray (Value):
 
     def __init__ (self,content,env):
         self.value = [item for item in content]
-
         self.type = "array"
-        self.arr_env = [
-                ("index",
-                VRefCell(VClosure(["x"],
-                                    EPrimCall(self.index,[EId("x")]),
-                                    self))),
-                ("length",
-                VRefCell(VClosure([],
-                                    EPrimCall(self.arrlength,[]),
-                                    self))),
-                ("map",
-                VRefCell(VClosure(["x"],
-                                    EPrimCall(self.map,[EId("x")]),
-                                    self))),
-                ("swap",
-                VRefCell(VClosure(["x","y"],
-                                    EPrimCall(self.swap,[EId("x"),EId("y")]),
-                                    self)))
-                ]
-
-        self.env = self.arr_env + env
+        self.env = env
 
     def __str__ (self):
         b = [thing.value for thing in self.value]
         return str(b)
 
-    def arrlength(self):
-        return VInteger(len(self.value))
 
-    def index(self, i):
-        if i.type == "integer":
-            return self.value[i.value]
+class VDict (Value):
 
-        raise Exception ("Runtime error: type error in array index")
+    def __init__ (self,keys,values,env):
+        self.keys = keys
+        self.values = values
+        self.content = {key: value.value for (key, value) in zip(keys,values)}
+        self.type = "dict"
+        self.env = env
 
-    def map(self,function):
-
-        for index, val in enumerate(self.value):
-            self.value[index] = function.body.eval([(function.params[0], val)] + function.env)
-        return self
-
-    def swap(self,first,second):
-        if first.type == "integer" and second.type == "integer":
-            r = self.value[first.value]
-            self.value[first.value] = self.value[second.value]
-            self.value[second.value] = r
-            return
-
-        raise Exception ("Runtime error: type error in array swap")
+    def __str__ (self):
+        return str(self.content)
 
 
 class VRefCell (Value):
@@ -573,6 +562,11 @@ def oper_arr_update (v1,v2,v3):
     if v1.type == "ref":
         v1.content.value[v2.value] = v3
         return VNone()
+    raise Exception ("Runtime error: updating a non-reference value")
+
+def oper_arr_index (v1,v2):
+    if v1.type == "ref":
+        return v1.content.value[v2.value]
     raise Exception ("Runtime error: updating a non-reference value")
 
 def oper_index (v1, v2):
@@ -711,6 +705,11 @@ def initial_env_pj ():
                                   EPrimCall(oper_arr_update,[EId("x"),EId("y"),EId("z")]),
                                   env))))
     env.insert(0,
+               ("arr_index",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_arr_index,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
                ("not",
                 VRefCell(VClosure(["x"],
                                   EPrimCall(oper_not,[EId("x")]),
@@ -829,7 +828,7 @@ def parse_pj (input):
     pNOT = (Keyword("not") + pEXPR)
     pNOT.setParseAction(lambda result: EPrimCall(oper_not, [result[1]]))
 
-    pCORE = ( pPAREN | pNOT | pINTEGER | pSTRING | pBOOLEAN | pCALL | pIDENTIFIER )
+    pCORE = ( pPAREN | pNOT | pINTEGER | pSTRING | pBOOLEAN | pIDENTIFIER | pCALL )
 
     pFACTOR = Forward()
 
@@ -842,8 +841,7 @@ def parse_pj (input):
     pCOND = pCORE + "?" + pEXPR + ":" + pEXPR
     pCOND.setParseAction(lambda result: EIf(result[0], result[2], result[4]))
 
-    pFACTOR << (pTIMES | pCOND | pAND
-     | pCORE)
+    pFACTOR << (pTIMES | pCOND | pAND | pCORE)
 
     pTERM = Forward()
 
@@ -876,13 +874,19 @@ def parse_pj (input):
 
     pTERM << ( pMINUS | pPLUS | pOR | pEQUALITY | pGT | pGEQ | pLT | pLEQ | pNEQ | pFACTOR )
 
+    pDICT = "{" + ZeroOrMore(pNAME + Suppress(":") + pEXPR + Suppress(",")) + Optional(pNAME + Suppress(":") + pEXPR) + "}"
+    pDICT.setParseAction(lambda result: EDict(result[1:-1]))
+
     pARRAY = "[" + ZeroOrMore(pEXPR + Suppress(",")) + Optional(pEXPR) + "]"
     pARRAY.setParseAction(lambda result: EArray(result[1:-1]))
+
+    pARR_INDEX = pNAME + "[" + pINTEGER + "]"
+    pARR_INDEX.setParseAction(lambda result: EPrimCall(oper_arr_index, [EId(result[0]), result[2]]))
 
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
 
-    pEXPR << ( pWITH | pARRAY | pTERM | pCALL )
+    pEXPR << ( pWITH | pARRAY | pDICT | pARR_INDEX | pTERM | pCALL )
 
     pDECL_VAR = "var" + pNAME + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1], VNone)) # TODO this declaration as VNone is probably wrong
@@ -916,7 +920,7 @@ def parse_pj (input):
 
     #      print expr , ... ;                    # print values (on the same line)
     pSTMT_PRINT = "print" + pEXPR + ZeroOrMore("," + pEXPR) + ";"
-    pSTMT_PRINT.setParseAction(lambda result: EPrimCall(oper_print,[v for (i, v) in enumerate(result) if (i % 2) != 0]));
+    pSTMT_PRINT.setParseAction(lambda result: EPrimCall(oper_print,[v for (i, v) in enumerate(result) if (i % 2) != 0]))
 
     #      while ( expr ) body                   # loop
     pSTMT_WHILE = "while" + pEXPR + pSTMT
@@ -967,7 +971,7 @@ def parse_pj (input):
     pQUIT = Keyword("#quit")
     pQUIT.setParseAction(lambda result: {"result":"quit"})
 
-    pTOP = (pQUIT | pABSTRACT | pTOP_DECL | pTOP_STMT )
+    pTOP = ( pQUIT | pABSTRACT | pTOP_DECL | pTOP_STMT )
 
     result = pTOP.parseString(input)[0]
     return result    # the first element of the result is the expression
