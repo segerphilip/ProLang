@@ -451,12 +451,12 @@ class VDict (Value):
     def __init__ (self,keys,values,env):
         self.keys = keys
         self.values = values
-        self.content = {key: value.value for (key, value) in zip(keys,values)}
+        self.value = {key: value.value for (key, value) in zip(keys,values)}
         self.type = "dict"
         self.env = env
 
     def __str__ (self):
-        return str(self.content)
+        return str(self.value)
 
 
 class VRefCell (Value):
@@ -558,13 +558,18 @@ def oper_upper (v1):
         return VString(v1.value.upper())
     raise Exception ("Runtime error: type error in upper")
 
-def oper_arr_update (v1,v2,v3):
+def oper_update (v1,v2,v3):
     if v1.type == "ref":
-        v1.content.value[v2.value] = v3
+        v1.content.value[v2.value] = v3.value
         return VNone()
     raise Exception ("Runtime error: updating a non-reference value")
 
 def oper_arr_index (v1,v2):
+    if v1.type == "ref":
+        return v1.content.value[v2.value]
+    raise Exception ("Runtime error: updating a non-reference value")
+
+def oper_dict_key (v1,v2):
     if v1.type == "ref":
         return v1.content.value[v2.value]
     raise Exception ("Runtime error: updating a non-reference value")
@@ -700,14 +705,19 @@ def initial_env_pj ():
                                   EPrimCall(oper_upper,[EId("x")]),
                                   env))))
     env.insert(0,
-               ("arr_update",
+               ("update",
                 VRefCell(VClosure(["x","y","z"],
-                                  EPrimCall(oper_arr_update,[EId("x"),EId("y"),EId("z")]),
+                                  EPrimCall(oper_update,[EId("x"),EId("y"),EId("z")]),
                                   env))))
     env.insert(0,
                ("arr_index",
                 VRefCell(VClosure(["x","y"],
                                   EPrimCall(oper_arr_index,[EId("x"),EId("y")]),
+                                  env))))
+    env.insert(0,
+               ("dict_key",
+                VRefCell(VClosure(["x","y"],
+                                  EPrimCall(oper_dict_key,[EId("x"),EId("y")]),
                                   env))))
     env.insert(0,
                ("not",
@@ -883,10 +893,13 @@ def parse_pj (input):
     pARR_INDEX = pNAME + "[" + pINTEGER + "]"
     pARR_INDEX.setParseAction(lambda result: EPrimCall(oper_arr_index, [EId(result[0]), result[2]]))
 
+    pDICT_KEY = pNAME + "[" + pSTRING + "]"
+    pDICT_KEY.setParseAction(lambda result: EPrimCall(oper_dict_key, [EId(result[0]), result[2]]))
+
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
 
-    pEXPR << ( pWITH | pARRAY | pDICT | pARR_INDEX | pTERM | pCALL )
+    pEXPR << ( pWITH | pARRAY | pDICT | pARR_INDEX | pDICT_KEY | pTERM | pCALL )
 
     pDECL_VAR = "var" + pNAME + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1], VNone)) # TODO this declaration as VNone is probably wrong
@@ -935,8 +948,8 @@ def parse_pj (input):
     pSTMT_IF_1.setParseAction(lambda result: EIf(result[1],result[2],result[4]))
 
     #      expr [ expr ] = expr ;                # assign to array or dictionary element
-    pSTMT_UPDATE_ARRAY = pNAME + "[" + pEXPR + "]" + "=" + pEXPR + ";"
-    pSTMT_UPDATE_ARRAY.setParseAction(lambda result: EPrimCall(oper_arr_update,[EId(result[0]),result[2],result[5]]))
+    pSTMT_UPDATE = pNAME + "[" + pEXPR + "]" + "=" + pEXPR + ";"
+    pSTMT_UPDATE.setParseAction(lambda result: EPrimCall(oper_update,[EId(result[0]),result[2],result[5]]))
 
     #      for ( id in expr ) body               # iteration over elements of an array
     def mkBlock (decls,stmts):
@@ -953,7 +966,7 @@ def parse_pj (input):
     pSTMT_PRCDR = pEXPR + "(" + Group(ZeroOrMore(pEXPR + Optional(","))) + ")" + ";"
     pSTMT_PRCDR.setParseAction(lambda result: ECall(result[0], result[2]))
 
-    pSTMT << ( pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_ID | pSTMT_UPDATE_ARRAY | pSTMT_PRCDR | pSTMT_BLOCK )
+    pSTMT << ( pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_ID | pSTMT_UPDATE | pSTMT_PRCDR | pSTMT_BLOCK )
 
     # previous assignment stuff
     pTOP_STMT = pSTMT.copy()
