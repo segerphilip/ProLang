@@ -95,7 +95,7 @@ x       expr ? expr : expr                    # conditional
 x       expr ( expr , ... )                   # function call
 x	    ( expr )
 x       [ expr , ... ]                        # creates an array
-        fun ( id , ... ) body                 # anonymous function
+x       fun ( id , ... ) body                 # anonymous function
         fun id ( id , ... ) body              # recursive anonymous function
 x       { id : expr , ... }                   # dictionary (record)
 x       expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
@@ -902,7 +902,10 @@ def parse_pj (input):
     pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
     pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
 
-    pEXPR << ( pWITH | pARRAY | pDICT | pARR_INDEX | pDICT_KEY | pTERM | pCALL )
+    pFUN = Keyword("fun") + "(" + Optional(pNAME + ZeroOrMore("," + pNAME)) + ")" + pBODY
+    pFUN.setParseAction(lambda result: EFunction(result[2:-2],result[-1]))
+
+    pEXPR << ( pWITH | pFUN | pARRAY | pDICT | pARR_INDEX | pDICT_KEY | pTERM | pCALL )
 
     pDECL_VAR = "var" + pNAME + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1], VNone)) # TODO this declaration as VNone is probably wrong
