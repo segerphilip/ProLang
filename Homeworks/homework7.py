@@ -92,7 +92,7 @@ x	    expr or expr                          # short-circuiting
 x	    not expr
         let ( id = expr , ... ) expr          # local binding
 x       expr ? expr : expr                    # conditional
-        expr ( expr , ... )                   # function call
+x       expr ( expr , ... )                   # function call
 x	    ( expr )
 x       [ expr , ... ]                        # creates an array
         fun ( id , ... ) body                 # anonymous function
@@ -100,7 +100,7 @@ x       [ expr , ... ]                        # creates an array
 x       { id : expr , ... }                   # dictionary (record)
 x       expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
 
-stmt ::= expr ;                                # evaluate expression (drop the result)
+stmt ::= expr ;                               # evaluate expression (drop the result)
 x       id = expr ;                           # assignment to a variable
 x       print expr , ... ;                    # print values (on the same line)
 x       expr [ expr ] = expr ;                # assign to array or dictionary element
@@ -115,8 +115,7 @@ x
 decl ::=
 x       var id ;
 x       var id = expr ;
-        def id ( id , ... ) body       # function definition
-    still broken
+x       def id ( id , ... ) body       # function definition
 
 
 """
@@ -244,6 +243,8 @@ class EFunction (Exp):
     # Creates an anonymous function
 
     def __init__ (self,params,body):
+        print params
+        print body
         self._params = [param for param in params if param!=","]
         self._body = body
 
@@ -892,7 +893,7 @@ def parse_pj (input):
     pARRAY = "[" + ZeroOrMore(pEXPR + Suppress(",")) + Optional(pEXPR) + "]"
     pARRAY.setParseAction(lambda result: EArray(result[1:-1]))
 
-    pARR_INDEX = pNAME + "[" + pINTEGER + "]"
+    pARR_INDEX = pNAME + "[" + pEXPR + "]"
     pARR_INDEX.setParseAction(lambda result: EPrimCall(oper_arr_index, [EId(result[0]), result[2]]))
 
     pDICT_KEY = pNAME + "[" + pSTRING + "]"
@@ -915,7 +916,7 @@ def parse_pj (input):
     pSTMTS.setParseAction(lambda result: [result])
 
     pDECL_FUN = Keyword("def") + pNAME + "(" + Optional(pNAME + ZeroOrMore("," + pNAME)) + ")" + pBODY
-    pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(1,2,3)))
+    pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(result[3:-2],result[-1])))
 
     pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_FUN | NoMatch() )
 
