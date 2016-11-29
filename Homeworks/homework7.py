@@ -243,9 +243,7 @@ class EFunction (Exp):
     # Creates an anonymous function
 
     def __init__ (self,params,body):
-        print params
-        print body
-        self._params = [param for param in params if param!=","]
+        self._params = [ERefCell(param) for param in params if param!=","]
         self._body = body
 
     def __str__ (self):
@@ -977,7 +975,7 @@ def parse_pj (input):
     pQUIT = Keyword("#quit")
     pQUIT.setParseAction(lambda result: {"result":"quit"})
 
-    pTOP = ( pQUIT | pABSTRACT | pTOP_DECL | pTOP_STMT )
+    pTOP = OneOrMore( pQUIT | pABSTRACT | pTOP_DECL | pTOP_STMT )
 
     result = pTOP.parseString(input)[0]
     return result    # the first element of the result is the expression
@@ -1027,7 +1025,7 @@ def shell_pj ():
             print "Exception: {}".format(e)
 
 
-def execute_helper(env, inp):
+def execute_shell(env, inp):
     try:
         result = parse_pj(inp)
 
@@ -1057,17 +1055,9 @@ def execute(filename):
     lines = [line.rstrip('\n') for line in open(filename)]
     env = initial_env_pj()
 
-    for index,line in enumerate(lines):
-        print "ASDFJASDFADS"
-        print line
-        if line != "":
-            execute_helper(env,line)
-        if line[0:3] == "def":
-            print "".join(lines[index-1:])
-            execute_helper(env,"".join(lines[index-1:]))
-            break
-
-    # execute_helper(env,"main();")
+    temp = "".join(lines)
+    execute_shell(env,temp)
+    execute_shell(env,"main();")
 
 if __name__ == '__main__':
 
