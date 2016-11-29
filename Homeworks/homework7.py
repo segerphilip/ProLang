@@ -97,13 +97,13 @@ x	    ( expr )
 x       [ expr , ... ]                        # creates an array
         fun ( id , ... ) body                 # anonymous function
         fun id ( id , ... ) body              # recursive anonymous function
-        { id : expr , ... }                   # dictionary (record)
-        expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
+x       { id : expr , ... }                   # dictionary (record)
+x       expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
 
 stmt ::= expr ;                                # evaluate expression (drop the result)
 x       id = expr ;                           # assignment to a variable
 x       print expr , ... ;                    # print values (on the same line)
-        expr [ expr ] = expr ;                # assign to array or dictionary element
+x       expr [ expr ] = expr ;                # assign to array or dictionary element
         if ( expr ) body                      # conditional
         if ( expr ) body else body            # conditional
         while ( expr ) body                   # loop
@@ -842,6 +842,8 @@ def parse_pj (input):
 
     pFACTOR = Forward()
 
+    pBODY = Forward()
+
     pTIMES = (pCORE + "*" + pFACTOR)
     pTIMES.setParseAction(lambda result: EPrimCall(oper_times,[result[0],result[2]]))
 
@@ -909,49 +911,35 @@ def parse_pj (input):
 
     pSTMT = Forward()
 
-    pDECL = Forward()
-
-    pDECLS = ZeroOrMore(pDECL)
-    pDECLS.setParseAction(lambda result: [result])
-
-    # stmt ::= expr ;                            # evaluate expression (drop the result)
     pSTMTS = ZeroOrMore(pSTMT) + ";"
     pSTMTS.setParseAction(lambda result: [result])
 
-    pBODY = "{" + pDECLS + pSTMTS + "}"
-    pBODY.setParseAction(lambda result: [result[1], result[2]])
-
-    pDECL_FUN = "def" + pNAME + "(" + ")" + pBODY
-    # pDECL_FUN = "def" + pNAME + "(" + Group(ZeroOrMore(pNAME + Optional(","))) + ")" + pBODY
+    pDECL_FUN = Keyword("def") + pNAME + "(" + Optional(pNAME + ZeroOrMore("," + pNAME)) + ")" + pBODY
     pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(1,2,3)))
 
     pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_FUN | NoMatch() )
 
-    #      id = expr ;                           # assignment to a variable
+    pDECLS = ZeroOrMore(pDECL)
+    pDECLS.setParseAction(lambda result: [result])
+
     pSTMT_ID = pNAME + "=" + pEXPR + ";"
     pSTMT_ID.setParseAction(lambda result: EPrimCall(oper_update,[EId(result[0]),result[2]]))
 
-    #      print expr , ... ;                    # print values (on the same line)
     pSTMT_PRINT = "print" + pEXPR + ZeroOrMore("," + pEXPR) + ";"
     pSTMT_PRINT.setParseAction(lambda result: EPrimCall(oper_print,[v for (i, v) in enumerate(result) if (i % 2) != 0]))
 
-    #      while ( expr ) body                   # loop
     pSTMT_WHILE = "while" + pEXPR + pSTMT
     pSTMT_WHILE.setParseAction(lambda result: EWhile(result[1],result[2]))
 
-    #          if ( expr ) body                  # conditional
     pSTMT_IF_2 = "if" + pEXPR + pSTMT
     pSTMT_IF_2.setParseAction(lambda result: EIf(result[1],result[2],EValue(VBoolean(True))))
 
-    #          if ( expr ) body else body        # conditional
     pSTMT_IF_1 = "if" + pEXPR + pSTMT + "else" + pSTMT
     pSTMT_IF_1.setParseAction(lambda result: EIf(result[1],result[2],result[4]))
 
-    #      expr [ expr ] = expr ;                # assign to array or dictionary element
     pSTMT_UPDATE = pNAME + "[" + pEXPR + "]" + "=" + pEXPR + ";"
     pSTMT_UPDATE.setParseAction(lambda result: EPrimCall(oper_update,[EId(result[0]),result[2],result[5]]))
 
-    #      for ( id in expr ) body               # iteration over elements of an array
     def mkBlock (decls,stmts):
         bindings = [ (n,ERefCell(expr)) for (n,expr) in decls ]
         return ELet(bindings,EDo(stmts))
@@ -959,16 +947,17 @@ def parse_pj (input):
     pSTMT_BLOCK = "{" + pDECLS + pSTMTS + "}"
     pSTMT_BLOCK.setParseAction(lambda result: mkBlock(result[1],result[2]))
 
-    # start of for
     pSTMT_FOR = "for" + pDECL_VAR + pCALL + ";" + pSTMT_ID + pSTMT
     pSTMT_FOR.setParseAction(lambda result: EFor(result[1], result[2], result[4], result[5]))
 
     pSTMT_PRCDR = pEXPR + "(" + Group(ZeroOrMore(pEXPR + Optional(","))) + ")" + ";"
     pSTMT_PRCDR.setParseAction(lambda result: ECall(result[0], result[2]))
 
-    pSTMT << ( pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_ID | pSTMT_UPDATE | pSTMT_PRCDR | pSTMT_BLOCK )
+    pSTMT << ( pSTMT_BLOCK | pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_ID | pSTMT_UPDATE | pSTMT_PRCDR )
 
-    # previous assignment stuff
+    pBODY << "{" + Group(ZeroOrMore(pDECL)) + Group(ZeroOrMore(pSTMT)) + "}"
+    pBODY.setParseAction(lambda result: mkBlock(result[1],result[2]))
+
     pTOP_STMT = pSTMT.copy()
     pTOP_STMT.setParseAction(lambda result: {"result":"statement",
                                              "stmt":result[0]})
