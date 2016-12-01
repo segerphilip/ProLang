@@ -6,119 +6,9 @@
 # Emails: Hannah.Twigg-Smith@students.olin.edu, Philip.Seger@students.olin.edu
 #
 # Remarks:
-#
+# Deniz Celik helped us with file reading regarding pyparsing's builtin
+# ReadFile method.
 ############################################################
-# Requirements:
-#
-#
-# expr ::= integer literal                   # of the form 123 or -456
-#      boolean literal                       # true , false
-#      string literal                        # of the form "xyz"
-#      id                                    # starts with a letter or _
-#      expr + expr                           # adds integers / concatenates arrays / concatenates strings
-#      expr * expr
-#      expr - expr
-#      expr == expr                          # equality (all types)
-#      expr > expr                           # for integers and strings (lexicographic order)
-#      expr >= expr                          # for integers and strings (lexicographic order)
-#      expr < expr                           # for integers and strings (lexicographic order)
-#      expr <= expr                          # for integers and strings (lexicographic order)
-#      expr <> expr                          # this is "not equal" (all types)
-#      expr and expr                         # short-circuiting
-#      expr or expr                          # short-circuiting
-#      not expr
-#      let ( id = expr , ... ) expr          # local binding
-#      expr ? expr : expr                    # conditional
-#      expr ( expr , ... )                   # function call
-#      ( expr )
-#      [ expr , ... ]                        # creates an array
-#      fun ( id , ... ) body                 # anonymous function
-#      fun id ( id , ... ) body              # recursive anonymous function
-#      { id : expr , ... }                   # dictionary (record)
-#      expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
-#
-#
-# vals ::= integers
-#          Booleans
-#          strings
-#          arrays
-#          dictionaries (records)
-#          functions (closures)
-#          None value
-#
-#
-# stmt ::= expr ;                            # evaluate expression (drop the result)
-#      id = expr ;                           # assignment to a variable
-#      print expr , ... ;                    # print values (on the same line)
-#      expr [ expr ] = expr ;                # assign to array or dictionary element
-#          if ( expr ) body                  # conditional
-#          if ( expr ) body else body        # conditional
-#      while ( expr ) body                   # loop
-#      for ( id in expr ) body               # iteration over elements of an array
-#
-#
-# body ::= { decl ... stmt ... }             # zero of more declarations followed by zero or more statements
-#
-#
-# decl ::= var id ;
-#          var id = expr ;
-#          def id ( id , ... ) body          # function definition
-
-
-
-"""
-TODO:
-
-- Fix: subtraction is not left recursive
-- Fix: something weird about logic and not
-- Read main function in a file
-
-expr ::=
-x       integer literal                       # of the form 123 or -456
-x       boolean literal                       # true , false
-x	    string literal                        # of the form "xyz"
-x	    id                                    # starts with a letter or _
-x	    expr + expr                           # adds integers / concatenates arrays / concatenates strings
-x	    expr * expr
-x	    expr - expr
-x       expr == expr                          # equality (all types)
-x       expr > expr                           # for integers and strings (lexicographic order)
-x       expr >= expr                          # for integers and strings (lexicographic order)
-x       expr < expr                           # for integers and strings (lexicographic order)
-x       expr <= expr                          # for integers and strings (lexicographic order)
-x       expr <> expr                          # this is "not equal" (all types)
-x	    expr and expr                         # short-circuiting
-x	    expr or expr                          # short-circuiting
-x	    not expr
-        let ( id = expr , ... ) expr          # local binding
-x       expr ? expr : expr                    # conditional
-x       expr ( expr , ... )                   # function call
-x	    ( expr )
-x       [ expr , ... ]                        # creates an array
-x       fun ( id , ... ) body                 # anonymous function
-        fun id ( id , ... ) body              # recursive anonymous function
-x       { id : expr , ... }                   # dictionary (record)
-x       expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
-
-stmt ::= expr ;                               # evaluate expression (drop the result)
-x       id = expr ;                           # assignment to a variable
-x       print expr , ... ;                    # print values (on the same line)
-x       expr [ expr ] = expr ;                # assign to array or dictionary element
-        if ( expr ) body                      # conditional
-        if ( expr ) body else body            # conditional
-        while ( expr ) body                   # loop
-        for ( id in expr ) body               # iteration over elements of an array
-
-body ::= { decl ... stmt ... }         # zero of more declarations followed by zero or more statements
-x
-
-decl ::=
-x       var id ;
-x       var id = expr ;
-x       def id ( id , ... ) body       # function definition
-
-
-"""
 
 import sys
 
@@ -481,9 +371,10 @@ class VNone (Value):
 # Primitive operations
 
 def oper_plus (v1,v2):
+    if v1.type == "string" and v2.type == "string":
+        return VString(v1.value + v2.value)
     if v1.type == "integer" and v2.type == "integer":
-        hi = VInteger(v1.value + v2.value)
-        return hi
+        return VInteger(v1.value + v2.value)
     raise Exception ("Runtime error: trying to add non-numbers")
 
 def oper_minus (v1,v2):
@@ -523,7 +414,7 @@ def oper_print (*v1):
     return VNone()
 
 def oper_length (v1):
-    if v1.type == "string":
+    if v1.type == "string" or v1.type == "array":
         return VInteger(len(v1.value))
     raise Exception ("Runtime error: type error in length")
 
@@ -584,6 +475,8 @@ def oper_not (v1):
     raise Exception ("Runtime error: type error in not: condition not a boolean")
 
 def oper_and (v1,v2):
+    print v1
+    print v2
     if v1.type == "boolean" and v2.type == "boolean":
         return VBoolean(v1.value and v2.value)
     raise Exception ("Runtime error: type error in and: condition not a boolean")
@@ -637,151 +530,62 @@ def oper_equals (v1,v2):
 ##
 # cf http://pyparsing.wikispaces.com/
 
-from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, NoMatch, Group, QuotedString, Suppress, Optional
+from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, alphas, alphanums, NoMatch, Group, QuotedString, Suppress, Optional, FollowedBy, StringEnd
 
 
 def initial_env_pj ():
     # A sneaky way to allow functions to refer to functions that are not
     # yet defined at top level, or recursive functions
     env = []
+
     env.insert(0,
-               ("+",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_plus,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("-",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_minus,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("*",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_times,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("zero?",
-                VRefCell(VClosure(["x"],
-                                  EPrimCall(oper_zero,[EId("x")]),
-                                  env))))
-    env.insert(0,
-               ("length",
+               ("len",
                 VRefCell(VClosure(["x"],
                                   EPrimCall(oper_length,[EId("x")]),
-                                  env))))
-    env.insert(0,
-               ("substring",
-                VRefCell(VClosure(["x","y","z"],
-                                  EPrimCall(oper_substring,[EId("x"),EId("y"),EId("z")]),
-                                  env))))
-    env.insert(0,
-               ("concat",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_concat,[EId("x"),EId("y")]),
-                                  env))))
-
-    env.insert(0,
-               ("startswith",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_startswith,[EId("x"),EId("y")]),
-                                  env))))
-
-    env.insert(0,
-               ("endswith",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_endswith,[EId("x"),EId("y")]),
-                                  env))))
-
-    env.insert(0,
-               ("lower",
-                VRefCell(VClosure(["x"],
-                                  EPrimCall(oper_lower,[EId("x")]),
-                                  env))))
-
-    env.insert(0,
-               ("upper",
-                VRefCell(VClosure(["x"],
-                                  EPrimCall(oper_upper,[EId("x")]),
-                                  env))))
-    env.insert(0,
-               ("update",
-                VRefCell(VClosure(["x","y","z"],
-                                  EPrimCall(oper_update,[EId("x"),EId("y"),EId("z")]),
-                                  env))))
-    env.insert(0,
-               ("arr_index",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_arr_index,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("dict_key",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_dict_key,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("not",
-                VRefCell(VClosure(["x"],
-                                  EPrimCall(oper_not,[EId("x")]),
-                                  env))))
-    env.insert(0,
-               ("and",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_and,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("or",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_or,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               (">",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_greater,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("<",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_less,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               (">=",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_greater_equal,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("<=",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_less_equal,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("<>",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_not_equal,[EId("x"),EId("y")]),
-                                  env))))
-    env.insert(0,
-               ("==",
-                VRefCell(VClosure(["x","y"],
-                                  EPrimCall(oper_equals,[EId("x"),EId("y")]),
                                   env))))
     return env
 
 
 
 
-def parse_pj (input):
-    # parse a string into an element of the abstract representation
-
+def parse_pj ():
     # Grammar:
     #
-    # <expr> ::= <integer>
-    #            true
-    #            false
-    #            <identifier>
-    #            ( if <expr> <expr> <expr> )
-    #            ( function ( <name ... ) <expr> )
-    #            ( <expr> <expr> ... )
+    # expr ::= integer literal                   # of the form 123 or -456
+    #      boolean literal                       # true , false
+    #      string literal                        # of the form "xyz"
+    #      id                                    # starts with a letter or _
+    #      expr + expr                           # adds integers / concatenates arrays / concatenates strings
+    #      expr * expr
+    #      expr - expr
+    #      expr == expr                          # equality (all types)
+    #      expr > expr                           # for integers and strings (lexicographic order)
+    #      expr >= expr                          # for integers and strings (lexicographic order)
+    #      expr < expr                           # for integers and strings (lexicographic order)
+    #      expr <= expr                          # for integers and strings (lexicographic order)
+    #      expr <> expr                          # this is "not equal" (all types)
+    #      expr and expr                         # short-circuiting
+    #      expr or expr                          # short-circuiting
+    #      not expr
+    #      let ( id = expr , ... ) expr          # local binding
+    #      expr ? expr : expr                    # conditional
+    #      expr ( expr , ... )                   # function call
+    #      ( expr )
+    #      [ expr , ... ]                        # creates an array
+    #      fun ( id , ... ) body                 # anonymous function
+    #      fun id ( id , ... ) body              # recursive anonymous function
+    #      { id : expr , ... }                   # dictionary (record)
+    #      expr [ expr ]                         # array or string (a[2]) or dictionary (a["x"]) indexing
     #
-    # <decl> ::= var name = expr ;
+    #
+    # vals ::= integers
+    #          Booleans
+    #          strings
+    #          arrays
+    #          dictionaries (records)
+    #          functions (closures)
+    #          None value
+    #
     #
     # stmt ::= expr ;                            # evaluate expression (drop the result)
     #      id = expr ;                           # assignment to a variable
@@ -793,11 +597,12 @@ def parse_pj (input):
     #      for ( id in expr ) body               # iteration over elements of an array
     #
     #
-    # <block> ::= { <decl> ... <stmt> ... }
+    # body ::= { decl ... stmt ... }             # zero of more declarations followed by zero or more statements
     #
-    # <toplevel> ::= <decl>
-    #                <stmt>
     #
+    # decl ::= var id ;
+    #          var id = expr ;
+    #          def id ( id , ... ) body          # function definition
 
 
     # Don't allow ids to have any characters like +-=*!? because it confuses the
@@ -843,21 +648,43 @@ def parse_pj (input):
 
     pBODY = Forward()
 
+    pSTEP = Forward()
+
     pTIMES = (pCORE + "*" + pFACTOR)
     pTIMES.setParseAction(lambda result: EPrimCall(oper_times,[result[0],result[2]]))
 
-    pAND = (pCORE + Keyword("and") + pFACTOR)
+    pEQUALITY = (pCORE + "==" + pSTEP)
+    pEQUALITY.setParseAction(lambda result: EPrimCall(oper_equals, [result[0],result[2]]))
+
+    pGT = (pCORE + ">" + pSTEP)
+    pGT.setParseAction(lambda result: EPrimCall(oper_greater, [result[0],result[2]]))
+
+    pGEQ = (pCORE + ">=" + pSTEP)
+    pGEQ.setParseAction(lambda result: EPrimCall(oper_greater_equal, [result[0],result[2]]))
+
+    pLT = (pCORE + "<" + pSTEP)
+    pLT.setParseAction(lambda result: EPrimCall(oper_less, [result[0],result[2]]))
+
+    pLEQ = (pCORE + "<=" + pSTEP)
+    pLEQ.setParseAction(lambda result: EPrimCall(oper_less_equal, [result[0],result[2]]))
+
+    pNEQ = (pCORE + "<>" + pSTEP)
+    pNEQ.setParseAction(lambda result: EPrimCall(oper_not_equal, [result[0],result[2]]))
+
+    pSTEP << ( pEQUALITY | pGT | pGEQ | pLT | pLEQ | pNEQ | pCORE )
+
+    pAND = (pSTEP + Keyword("and") + pFACTOR)
     pAND.setParseAction(lambda result: EPrimCall(oper_and, [result[0],result[2]]))
+
+    pOR = (pSTEP + Keyword("or") + pFACTOR)
+    pOR.setParseAction(lambda result: EPrimCall(oper_or, [result[0],result[2]]))
 
     pCOND = pCORE + "?" + pEXPR + ":" + pEXPR
     pCOND.setParseAction(lambda result: EIf(result[0], result[2], result[4]))
 
-    pFACTOR << (pTIMES | pCOND | pAND | pCORE)
+    pFACTOR << ( pTIMES | pCOND | pAND | pOR | pSTEP )
 
     pTERM = Forward()
-
-    pOR = (pCORE + Keyword("or") + pFACTOR)
-    pOR.setParseAction(lambda result: EPrimCall(oper_or, [result[0],result[2]]))
 
     pPLUS = (pFACTOR + "+" + pTERM)
     pPLUS.setParseAction(lambda result: EPrimCall(oper_plus,[result[0],result[2]]))
@@ -865,25 +692,7 @@ def parse_pj (input):
     pMINUS = (pFACTOR + "-" + pTERM)
     pMINUS.setParseAction(lambda result: EPrimCall(oper_minus,[result[0],result[2]]))
 
-    pEQUALITY = (pFACTOR + "==" + pTERM)
-    pEQUALITY.setParseAction(lambda result: EPrimCall(oper_equals, [result[0],result[2]]))
-
-    pGT = (pFACTOR + ">" + pTERM)
-    pGT.setParseAction(lambda result: EPrimCall(oper_greater, [result[0],result[2]]))
-
-    pGEQ = (pFACTOR + ">=" + pTERM)
-    pGEQ.setParseAction(lambda result: EPrimCall(oper_greater_equal, [result[0],result[2]]))
-
-    pLT = (pFACTOR + "<" + pTERM)
-    pLT.setParseAction(lambda result: EPrimCall(oper_less, [result[0],result[2]]))
-
-    pLEQ = (pFACTOR + "<=" + pTERM)
-    pLEQ.setParseAction(lambda result: EPrimCall(oper_less_equal, [result[0],result[2]]))
-
-    pNEQ = (pFACTOR + "<>" + pTERM)
-    pNEQ.setParseAction(lambda result: EPrimCall(oper_not_equal, [result[0],result[2]]))
-
-    pTERM << ( pMINUS | pPLUS | pOR | pEQUALITY | pGT | pGEQ | pLT | pLEQ | pNEQ | pFACTOR )
+    pTERM << ( pMINUS | pPLUS | pFACTOR )
 
     pDICT = "{" + ZeroOrMore(pNAME + Suppress(":") + pEXPR + Suppress(",")) + Optional(pNAME + Suppress(":") + pEXPR) + "}"
     pDICT.setParseAction(lambda result: EDict(result[1:-1]))
@@ -975,10 +784,11 @@ def parse_pj (input):
     pQUIT = Keyword("#quit")
     pQUIT.setParseAction(lambda result: {"result":"quit"})
 
-    pTOP = OneOrMore( pQUIT | pABSTRACT | pTOP_DECL | pTOP_STMT )
+    pTOP = OneOrMore( pTOP_DECL | pTOP_STMT )# + FollowedBy(StringEnd())
 
-    result = pTOP.parseString(input)[0]
-    return result    # the first element of the result is the expression
+    # result = pTOP.parseString(input)[0]
+    # return result    # the first element of the result is the expression
+    return pTOP
 
 
 def shell_pj ():
@@ -1027,8 +837,7 @@ def shell_pj ():
 
 def execute_shell(env, inp):
     try:
-        result = parse_pj(inp)
-
+        result = inp
         if result["result"] == "statement":
             stmt = result["stmt"]
             # print "Abstract representation:", exp
@@ -1052,16 +861,16 @@ def execute_shell(env, inp):
 
 
 def execute(filename):
-    lines = [line.rstrip('\n') for line in open(filename)]
+    #lines = [line.rstrip('\n') for line in open(filename)]
+    result = parse_pj().parseFile(filename)
     env = initial_env_pj()
+    call_main = {'result': 'statement', 'stmt': ECall(EPrimCall(oper_deref,[EId("main")]),[])}
+    result.append(call_main)
 
-    temp = "".join(lines)
-    execute_shell(env,temp)
-    execute_shell(env,"main();")
+    for res in result:
+        execute_shell(env, res)
+
 
 if __name__ == '__main__':
-
     if len(sys.argv)>1:
         execute(sys.argv[1])
-        print("done, now here's the shell:")
-    shell_pj()
