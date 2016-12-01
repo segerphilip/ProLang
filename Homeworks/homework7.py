@@ -6,8 +6,15 @@
 # Emails: Hannah.Twigg-Smith@students.olin.edu, Philip.Seger@students.olin.edu
 #
 # Remarks:
-# Deniz Celik helped us with file reading regarding pyparsing's builtin
-# ReadFile method.
+# Deniz Celik helped us with file reading by telling us about pyparsing's
+# builtin ReadFile method.
+# I wasn't able to figure out why this was, but originally the parser was
+# "fast" when matching logic statments. The addition of equality (which required
+# me to move some stuff around) made it pretty slow
+# Tried to make pCALL an expr but it just wasn't working (spent a lot of time on
+# this). As a result, anonymous functions are not called correctly
+# Most things work except pSTMT_IF, pSTMT_IFELSE, and pSTMT_FOR, which I mostly
+# just ran out of time to implement. (The grammar is correct though)
 ############################################################
 
 import sys
@@ -133,7 +140,7 @@ class EFunction (Exp):
     # Creates an anonymous function
 
     def __init__ (self,params,body):
-        self._params = [ERefCell(param) for param in params if param!=","]
+        self._params = params
         self._body = body
 
     def __str__ (self):
@@ -194,16 +201,17 @@ class EWhile (Exp):
 
 class EFor (Exp):
 
-    def __init__ (self,init,cond,incr,expr):
+    def __init__ (self,init,arr,expr):
         self._init = init
-        self._cond = cond
-        self._incr = incr
+        self._arr = arr
         self._expr = expr
 
     def __str__ (self):
         return "EFor({};{};{}){{}}".format(str(self._init),str(self._cond),str(self._incr),str(self._expr))
 
     def eval (self,env):
+        # doesn't work, we need to increment through self._arr and do expr each
+        # time
         env.insert(0, (self._init[0], VRefCell(self._init[1].eval(env))))
 
         c = self._cond.eval(env)
@@ -314,6 +322,7 @@ class VBoolean (Value):
 class VClosure (Value):
 
     def __init__ (self,params,body,env):
+        #print params
         self.params = params
         self.body = body
         self.env = env
@@ -387,11 +396,6 @@ def oper_times (v1,v2):
         return VInteger(v1.value * v2.value)
     raise Exception ("Runtime error: trying to multiply non-numbers")
 
-def oper_zero (v1):
-    if v1.type == "integer":
-        return VBoolean(v1.value==0)
-    raise Exception ("Runtime error: type error in zero?")
-
 def oper_not_equal (v1, v2):
     if v1.type == v2.type:
         return VBoolean(not (v1.value==v2.value))
@@ -401,12 +405,6 @@ def oper_deref (v1):
     if v1.type == "ref":
         return v1.content
     raise Exception ("Runtime error: dereferencing a non-reference value")
-
-def oper_update (v1,v2):
-    if v1.type == "ref":
-        v1.content = v2
-        return VNone()
-    raise Exception ("Runtime error: updating a non-reference value")
 
 def oper_print (*v1):
     for arg in v1:
@@ -423,35 +421,14 @@ def oper_substring (v1,v2,v3):
         return VString(v1.value[v2.value:v3.value])
     raise Exception ("Runtime error: type error in substring")
 
-def oper_concat (v1,v2):
-    if v1.type == "string" and v2.type == "string":
-        return VString(v1.value+v2.value)
-    raise Exception ("Runtime error: type error in concat")
-
-def oper_startswith (v1,v2):
-    if v1.type == "string" and v2.type == "string":
-        return VBoolean(v1.value[:len(v2.value)]==v2.value)
-    raise Exception ("Runtime error: type error in startswith")
-
-def oper_endswith (v1,v2):
-    if v1.type == "string" and v2.type == "string":
-        return VBoolean(v1.value[-len(v2.value):]==v2.value)
-    raise Exception ("Runtime error: type error in endswith")
-
-def oper_lower (v1):
-    if v1.type == "string":
-        return VString(v1.value.lower())
-    raise Exception ("Runtime error: type error in lower")
-
-def oper_upper (v1):
-    if v1.type == "string":
-        return VString(v1.value.upper())
-    raise Exception ("Runtime error: type error in upper")
-
-def oper_update (v1,v2,v3):
+def oper_update (v1,v2,v3=None):
     if v1.type == "ref":
-        v1.content.value[v2.value] = v3.value
-        return VNone()
+        if v1.content.type == "array":
+            v1.content.value[v2.value] = v3.value
+            return VNone()
+        else:
+            v1.content.value = v2.value
+            return VNone()
     raise Exception ("Runtime error: updating a non-reference value")
 
 def oper_arr_index (v1,v2):
@@ -475,8 +452,6 @@ def oper_not (v1):
     raise Exception ("Runtime error: type error in not: condition not a boolean")
 
 def oper_and (v1,v2):
-    print v1
-    print v2
     if v1.type == "boolean" and v2.type == "boolean":
         return VBoolean(v1.value and v2.value)
     raise Exception ("Runtime error: type error in and: condition not a boolean")
@@ -636,13 +611,10 @@ def parse_pj ():
     pEXPRS = ZeroOrMore(pEXPR)
     pEXPRS.setParseAction(lambda result: [result])
 
-    pCALL = "(" + pEXPR + pEXPRS + ")"
-    pCALL.setParseAction(lambda result: ECall(result[1],result[2]))
-
     pNOT = (Keyword("not") + pEXPR)
     pNOT.setParseAction(lambda result: EPrimCall(oper_not, [result[1]]))
 
-    pCORE = ( pPAREN | pNOT | pINTEGER | pSTRING | pBOOLEAN | pIDENTIFIER | pCALL )
+    pCORE = ( pPAREN | pNOT | pINTEGER | pSTRING | pBOOLEAN | pIDENTIFIER )
 
     pFACTOR = Forward()
 
@@ -706,13 +678,23 @@ def parse_pj ():
     pDICT_KEY = pNAME + "[" + pSTRING + "]"
     pDICT_KEY.setParseAction(lambda result: EPrimCall(oper_dict_key, [EId(result[0]), result[2]]))
 
-    pWITH = "(" + Keyword("with") + pEXPR + pEXPR + ")"
-    pWITH.setParseAction(lambda result: EWith(result[2],result[3]))
+    def mkFunBody (params,body):
+        bindings = [ (p,ERefCell(EId(p))) for p in params ]
+        return ELet(bindings,body)
 
-    pFUN = Keyword("fun") + "(" + Optional(pNAME + ZeroOrMore("," + pNAME)) + ")" + pBODY
-    pFUN.setParseAction(lambda result: EFunction(result[2:-2],result[-1]))
+    pFUN = Keyword("fun") + "(" + Group(Optional(pNAME) + ZeroOrMore(Suppress(",") + pNAME)) + ")" + pBODY
+    pFUN.setParseAction(lambda result: EFunction(result[2],mkFunBody(result[2],result[4])))
 
-    pEXPR << ( pWITH | pFUN | pARRAY | pDICT | pARR_INDEX | pDICT_KEY | pTERM | pCALL )
+    def parse_let(result):
+        bindings = [(result[2],ERefCell(result[4]))]
+        for vs in result[5]:
+            bindings.append((vs[0],ERefCell(vs[2])))
+        return ELet(bindings,result[7])
+
+    pLET = Keyword("let") + "(" + pNAME + "=" + pEXPR + Group(ZeroOrMore( Suppress(",") + Group(pNAME + "=" + pEXPR) ))+ ")" + pEXPR
+    pLET.setParseAction(parse_let)
+
+    pEXPR << ( pFUN | pLET | pARRAY | pDICT | pARR_INDEX | pDICT_KEY | pTERM )
 
     pDECL_VAR = "var" + pNAME + ";"
     pDECL_VAR.setParseAction(lambda result: (result[1], VNone)) # TODO this declaration as VNone is probably wrong
@@ -725,8 +707,8 @@ def parse_pj ():
     pSTMTS = ZeroOrMore(pSTMT) + ";"
     pSTMTS.setParseAction(lambda result: [result])
 
-    pDECL_FUN = Keyword("def") + pNAME + "(" + Optional(pNAME + ZeroOrMore("," + pNAME)) + ")" + pBODY
-    pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(result[3:-2],result[-1])))
+    pDECL_FUN = Keyword("def") + pNAME + "(" + Group(Optional(pNAME) + ZeroOrMore(Suppress(",") + pNAME)) + ")" + pBODY
+    pDECL_FUN.setParseAction(lambda result: (result[1], EFunction(result[3],mkFunBody(result[3],result[5]))))
 
     pDECL = ( pDECL_VAR | pDECL_VAR_VAL | pDECL_FUN | NoMatch() )
 
@@ -739,14 +721,14 @@ def parse_pj ():
     pSTMT_PRINT = "print" + pEXPR + ZeroOrMore("," + pEXPR) + ";"
     pSTMT_PRINT.setParseAction(lambda result: EPrimCall(oper_print,[v for (i, v) in enumerate(result) if (i % 2) != 0]))
 
-    pSTMT_WHILE = "while" + pEXPR + pSTMT
+    pSTMT_WHILE = Keyword("while") + pEXPR + pBODY
     pSTMT_WHILE.setParseAction(lambda result: EWhile(result[1],result[2]))
 
-    pSTMT_IF_2 = "if" + pEXPR + pSTMT
-    pSTMT_IF_2.setParseAction(lambda result: EIf(result[1],result[2],EValue(VBoolean(True))))
+    pSTMT_IF = Keyword("if") + pEXPR + pBODY
+    pSTMT_IF.setParseAction(lambda result: EIf(result[1],result[2],EValue(VBoolean(True))))
 
-    pSTMT_IF_1 = "if" + pEXPR + pSTMT + "else" + pSTMT
-    pSTMT_IF_1.setParseAction(lambda result: EIf(result[1],result[2],result[4]))
+    pSTMT_IFELSE = Keyword("if") + pEXPR + pBODY + Keyword("else") + pBODY
+    pSTMT_IFELSE.setParseAction(lambda result: EIf(result[1],result[2],result[4]))
 
     pSTMT_UPDATE = pNAME + "[" + pEXPR + "]" + "=" + pEXPR + ";"
     pSTMT_UPDATE.setParseAction(lambda result: EPrimCall(oper_update,[EId(result[0]),result[2],result[5]]))
@@ -758,13 +740,16 @@ def parse_pj ():
     pSTMT_BLOCK = "{" + pDECLS + pSTMTS + "}"
     pSTMT_BLOCK.setParseAction(lambda result: mkBlock(result[1],result[2]))
 
-    pSTMT_FOR = "for" + pDECL_VAR + pCALL + ";" + pSTMT_ID + pSTMT
-    pSTMT_FOR.setParseAction(lambda result: EFor(result[1], result[2], result[4], result[5]))
+    pSTMT_FOR = Keyword("for") + "(" + pNAME + Keyword("in") + pEXPR + ")" + pBODY
+    pSTMT_FOR.setParseAction(lambda result: EFor(result[2],result[4],result[6]))
 
-    pSTMT_PRCDR = pEXPR + "(" + Group(ZeroOrMore(pEXPR + Optional(","))) + ")" + ";"
-    pSTMT_PRCDR.setParseAction(lambda result: ECall(result[0], result[2]))
+    pSTMT_EXPR = pEXPR + ";"
+    pSTMT_EXPR.setParseAction(lambda result: result[0])
 
-    pSTMT << ( pSTMT_BLOCK | pSTMT_IF_1 | pSTMT_IF_2 | pSTMT_FOR | pSTMT_WHILE | pSTMT_PRINT | pSTMT_ID | pSTMT_UPDATE | pSTMT_PRCDR )
+    pCALL = pEXPR + "(" + Group(ZeroOrMore(pEXPR + Optional(","))) + ")" + ";"
+    pCALL.setParseAction(lambda result: ECall(result[0], result[2]))
+
+    pSTMT << ( pSTMT_BLOCK | pSTMT_PRINT | pSTMT_IF | pSTMT_IFELSE | pCALL | pSTMT_FOR | pSTMT_WHILE | pSTMT_ID | pSTMT_UPDATE | pSTMT_EXPR )
 
     pBODY << "{" + Group(ZeroOrMore(pDECL)) + Group(ZeroOrMore(pSTMT)) + "}"
     pBODY.setParseAction(lambda result: mkBlock(result[1],result[2]))
@@ -789,51 +774,6 @@ def parse_pj ():
     # result = pTOP.parseString(input)[0]
     # return result    # the first element of the result is the expression
     return pTOP
-
-
-def shell_pj ():
-    # A simple shell
-    # Repeatedly read a line of input, parse it, and evaluate the result
-
-    print "Homework 7"
-    print "#quit to quit, #abs to see abstract representation"
-    env = initial_env_pj()
-
-    while True:
-        inp = raw_input("imp> ")
-
-        if inp.startswith("#multi"):
-            # multi-line statement
-            line = ""
-            inp = raw_input(".... ")
-            while inp:
-                line += inp + " "
-                inp = raw_input(".... ")
-            inp = line
-
-        try:
-            result = parse_pj(inp)
-
-            if result["result"] == "statement":
-                stmt = result["stmt"]
-                # print "Abstract representation:", exp
-                v = stmt.eval(env)
-
-            elif result["result"] == "abstract":
-                print result["stmt"]
-
-            elif result["result"] == "quit":
-                return
-
-            elif result["result"] == "declaration":
-                (name,expr) = result["decl"]
-                v = expr.eval(env)
-                env.insert(0,(name,VRefCell(v)))
-                print "{} defined".format(name)
-
-        except Exception as e:
-            print "Exception: {}".format(e)
-
 
 def execute_shell(env, inp):
     try:
