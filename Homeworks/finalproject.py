@@ -184,16 +184,7 @@ def parse_imp (input):
     #
     # <decl> ::= var name = expr ;
     #
-    # <stmt> ::= if <expr> <stmt> else <stmt>
-    #            while <expr> <stmt>
-    #            name <- <expr> ;
-    #            print <expr> ;
-    #            <block>
-    #
-    # <block> ::= { <decl> ... <stmt> ... }
-    #
-    # <toplevel> ::= <decl>
-    #                <stmt>
+    # <stmt> ::= name ( constant, ... )
     #
 
 
@@ -215,6 +206,12 @@ def parse_imp (input):
     pBOOLEAN = Keyword("true") | Keyword("false")
     pBOOLEAN.setParseAction(lambda result: EValue(VBoolean(result[0]=="true")))
 
+    pCONSTANT = pNAME
+    pCONSTANT.setParseAction()
+
+    pVARIABLE = pNAME
+    pVARIABLE.setParseAction()
+
     pEXPR = Forward()
 
     pEXPRS = ZeroOrMore(pEXPR)
@@ -224,10 +221,16 @@ def parse_imp (input):
 
     pSTMT = Forward()
 
-    pDECL_FACT = pNAME + "(" + Group(pNAME + ZeroOrMore(Suppress(",") + pNAME)) + ")"
+    pDECL_FACT = pCONSTANT + "."
     pDECL_FACT.setParseAction(lambda result: (result[0], result[2]))
 
-    pDECL = ( pDECL_FACT | NoMatch() )
+    pDECL_RELATION = pNAME + "(" + Group(pNAME + ZeroOrMore(Suppress(",") + pNAME)) + ")."
+    pDECL_RELATION.setParseAction(lambda result: (result[0], result[2]))
+
+    pDECL_RULE = pDECL_FACT + ":-" + Group(pDECL_RULE + ZeroOrMore(Suppress(",") + pDECL_FACT)) + "."
+    pDECL_RULE.setParseAction(lambda result: (result[0], result[2]))
+
+    pDECL = ( pDECL_FACT ^ pDECL_RULE ^ NoMatch() )
 
     pSTMT_QUERY = pNAME + "(" + Group(pNAME + ZeroOrMore(Suppress(",") + pNAME)) + ")" + "?"
     pSTMT_QUERY.setParseAction(lambda result: EQuery(result[0], result[2]))
