@@ -56,16 +56,26 @@ class EQuery (Exp):
 
     def __init__ (self,name,var):
         self._name = name
-        self._vars = var
+        self._vars = var.asList()
 
     def __str__ (self):
         return "EQuery({})".format(self._id)
 
     def eval (self,env):
-        for (id,v) in env:
-            if self._id == id:
-                return v
-        raise Exception("Runtime error: unknown identifier {}".format(self._id))
+        print "in query eval"
+        cont_vars = False
+        for word in self._vars:
+            if word[0].istitle():
+                cont_vars = True
+
+        if cont_vars:
+            return "NOT IMPLEMENTED YET"
+        else:
+            if self._vars in env[self._name]:
+                print "true"
+                return True
+            print "false"
+            return False
 #
 # Values
 #
@@ -235,7 +245,7 @@ def parse_imp (input):
     pQUIT = Keyword("#quit")
     pQUIT.setParseAction(lambda result: {"result":"quit"})
 
-    pTOP = (pQUIT | pTOP_DECL | pTOP_STMT )
+    pTOP = (pQUIT ^ pTOP_DECL ^ pTOP_STMT )
 
     result = pTOP.parseString(input)[0]
     return result    # the first element of the result is the expression
@@ -265,7 +275,10 @@ def shell ():
 
             elif result["result"] == "declaration":
                 (name, constants) = result["decl"]
-                env[name] = constants
+                if name in env:
+                    env[name].append(constants.asList())
+                else:
+                    env[name] = [constants.asList()]
                 print "fact {} defined".format(name)
 
 
