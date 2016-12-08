@@ -57,15 +57,18 @@ class EQuery (Exp):
     def __init__ (self,name,var):
         self._name = name
         self._vars = var.asList()
+        print "____________"
+        print self._name
+        print self._vars
 
     def __str__ (self):
-        return "EQuery({})".format(self._id)
+        return "EQuery({},{})".format(self._name,self._vars)
 
     def eval (self,env):
         print "in query eval"
         cont_vars = False
         for word in self._vars:
-            if word[0].istitle():
+            if word.type == "variable":
                 cont_vars = True
 
         if cont_vars:
@@ -76,6 +79,36 @@ class EQuery (Exp):
                 return True
             print "false"
             return False
+
+
+class EVariable (Exp):
+    # Variables
+
+    def __init__ (self,val):
+        self._name = name
+        self._val = val
+
+    def __str__ (self):
+        return "EVariable({})".format(self._name)
+
+    def eval (self,env):
+
+
+
+class EConstant (Exp):
+    # Constants
+
+    def __init__ (self,val):
+        self._name = name
+        self._val = val
+
+    def __str__ (self):
+        return "EConstant({})".format(self._name)
+
+    def eval (self,env):
+        
+
+
 #
 # Values
 #
@@ -112,6 +145,17 @@ class VConstant (Value):
     def __init__ (self,i):
         self.value = i
         self.type = "constant"
+
+    def __str__ (self):
+        return self.value
+
+
+class VVariable (Value):
+    # Value representation of constant
+
+    def __init__ (self,i):
+        self.value = i
+        self.type = "variable"
 
     def __str__ (self):
         return self.value
@@ -172,6 +216,9 @@ def initial_env_imp ():
 def parse_imp (input):
     # parse a string into an element of the abstract representation
 
+    # plan on implementing:
+    # facts, rules, relations, queries
+
     # Grammar:
     #
     # <expr> ::= <integer>
@@ -192,7 +239,14 @@ def parse_imp (input):
     capitals = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     lowers = "abcdefghijklmnopqrstuvwxyz"
 
+    def checkCapital (word):
+        if word[0].isupper():
+            return VVariable(word)
+        else:
+            return VConstant(word)
+
     pNAME = Word(idChars,idChars+"0123456789")
+    pNAME.setParseAction(lambda result: checkCapital(result[0]))
 
     pNAMES = ZeroOrMore(pNAME)
     pNAMES.setParseAction(lambda result: [result])
@@ -206,12 +260,6 @@ def parse_imp (input):
     pBOOLEAN = Keyword("true") | Keyword("false")
     pBOOLEAN.setParseAction(lambda result: EValue(VBoolean(result[0]=="true")))
 
-    pCONSTANT = pNAME
-    pCONSTANT.setParseAction()
-
-    pVARIABLE = pNAME
-    pVARIABLE.setParseAction()
-
     pEXPR = Forward()
 
     pEXPRS = ZeroOrMore(pEXPR)
@@ -221,16 +269,16 @@ def parse_imp (input):
 
     pSTMT = Forward()
 
-    pDECL_FACT = pCONSTANT + "."
+    pDECL_FACT = pNAME + "."
     pDECL_FACT.setParseAction(lambda result: (result[0], result[2]))
 
     pDECL_RELATION = pNAME + "(" + Group(pNAME + ZeroOrMore(Suppress(",") + pNAME)) + ")."
     pDECL_RELATION.setParseAction(lambda result: (result[0], result[2]))
 
-    pDECL_RULE = pDECL_FACT + ":-" + Group(pDECL_RULE + ZeroOrMore(Suppress(",") + pDECL_FACT)) + "."
+    pDECL_RULE = pDECL_FACT + ":-" + Group(pDECL_RELATION + ZeroOrMore(Suppress(",") + pDECL_FACT)) + "."
     pDECL_RULE.setParseAction(lambda result: (result[0], result[2]))
 
-    pDECL = ( pDECL_FACT ^ pDECL_RULE ^ NoMatch() )
+    pDECL = ( pDECL_FACT ^ pDECL_RULE ^ pDECL_RELATION ^ NoMatch() )
 
     pSTMT_QUERY = pNAME + "(" + Group(pNAME + ZeroOrMore(Suppress(",") + pNAME)) + ")" + "?"
     pSTMT_QUERY.setParseAction(lambda result: EQuery(result[0], result[2]))
@@ -281,6 +329,7 @@ def shell ():
                 if name in env:
                     env[name].append(constants.asList())
                 else:
+                    print constants
                     env[name] = [constants.asList()]
                 print "fact {} defined".format(name)
 
