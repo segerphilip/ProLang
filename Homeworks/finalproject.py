@@ -5,7 +5,7 @@
 #
 # Emails: Hannah.Twigg-Smith@students.olin.edu, Philip.Seger@students.olin.edu
 #
-# Remarks:
+# Remarks: We weren't super sure how to store constants and variables in the environment
 #
 ############################################################
 # Simple prolog-style interpreter
@@ -57,27 +57,45 @@ class EQuery (Exp):
     def __init__ (self,name,var):
         self._name = name
         self._vars = var.asList()
-        print "____________"
-        print self._name
-        print self._vars
 
     def __str__ (self):
         return "EQuery({},{})".format(self._name,self._vars)
 
     def eval (self,env):
-        print "in query eval"
-        cont_vars = False
-        for word in self._vars:
-            if word.type == "variable":
-                cont_vars = True
+        if len(self._vars) != len(env[self._name][0]):
+            return "Error: Incorrect number of arguments"
 
+        cont_vars = False
+        var_positions = []
+
+        for word in self._vars:
+            if word[0].isupper():
+                cont_vars = True
+                var_positions.append(True)
+            else:
+                var_positions.append(False)
+
+        #attempt to unify terms
         if cont_vars:
-            return "NOT IMPLEMENTED YET"
+            matches = []
+
+            for relation in env[self._name]:
+                match = True
+                for pos, var, rel in zip(var_positions, self._vars, relation):
+                    if pos:
+                        continue
+                    elif var == rel:
+                        continue
+                    else:
+                        match = False
+                if match:
+                    matches.append(relation)
+
+            return matches
+
         else:
             if self._vars in env[self._name]:
-                print "true"
                 return True
-            print "false"
             return False
 
 
@@ -92,6 +110,7 @@ class EVariable (Exp):
         return "EVariable({})".format(self._name)
 
     def eval (self,env):
+        pass
 
 
 
@@ -106,7 +125,8 @@ class EConstant (Exp):
         return "EConstant({})".format(self._name)
 
     def eval (self,env):
-        
+        pass
+
 
 
 #
@@ -246,7 +266,7 @@ def parse_imp (input):
             return VConstant(word)
 
     pNAME = Word(idChars,idChars+"0123456789")
-    pNAME.setParseAction(lambda result: checkCapital(result[0]))
+    #pNAME.setParseAction(lambda result: checkCapital(result[0]))
 
     pNAMES = ZeroOrMore(pNAME)
     pNAMES.setParseAction(lambda result: [result])
@@ -272,10 +292,10 @@ def parse_imp (input):
     pDECL_FACT = pNAME + "."
     pDECL_FACT.setParseAction(lambda result: (result[0], result[2]))
 
-    pDECL_RELATION = pNAME + "(" + Group(pNAME + ZeroOrMore(Suppress(",") + pNAME)) + ")."
+    pDECL_RELATION = pNAME + "(" + Group(pNAME + ZeroOrMore(Suppress(",") + pNAME)) + ")"
     pDECL_RELATION.setParseAction(lambda result: (result[0], result[2]))
 
-    pDECL_RULE = pDECL_FACT + ":-" + Group(pDECL_RELATION + ZeroOrMore(Suppress(",") + pDECL_FACT)) + "."
+    pDECL_RULE = pDECL_FACT + ":-" + Group(pDECL_RELATION + ZeroOrMore(Suppress(",") + pDECL_RELATION)) + "."
     pDECL_RULE.setParseAction(lambda result: (result[0], result[2]))
 
     pDECL = ( pDECL_FACT ^ pDECL_RULE ^ pDECL_RELATION ^ NoMatch() )
@@ -320,18 +340,26 @@ def shell ():
             if result["result"] == "statement":
                 stmt = result["stmt"]
                 v = stmt.eval(env)
+                print v
 
             elif result["result"] == "quit":
                 return
 
             elif result["result"] == "declaration":
                 (name, constants) = result["decl"]
+                cont_vars = False
+
+                for constant in constants:
+                    if constant[0].isupper():
+                        cont_vars = True
+
                 if name in env:
                     env[name].append(constants.asList())
+                elif cont_vars:
+                    print "Error: can't define a relation with a variable"
                 else:
-                    print constants
                     env[name] = [constants.asList()]
-                print "fact {} defined".format(name)
+                    print "relation {} defined".format(name)
 
 
         except Exception as e:
