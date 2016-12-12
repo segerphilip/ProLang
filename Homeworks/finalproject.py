@@ -88,19 +88,9 @@ class EQuery (Exp):
                         print "INTERMEDIATE VARIABLE"
 
 
-                # print rel
-                # print "MATCHES"
-                # print rel[1]
-                if not EQuery(rel[0],rel[1]).eval(env):
-                    return "no"
-                #possible_matches.append(EQuery(rel[0],rel[1]).eval(env))
+                return (self._name, EQuery(rel[0],rel[1]).eval(env))
 
-            #matches = possible_matches
-            return "yes"
-
-
-
-
+            return "no"
 
         if len(self._vars) != len(env[self._name][0]):
             return "Error: Incorrect number of arguments"
@@ -130,12 +120,12 @@ class EQuery (Exp):
                 if match:
                     matches.append(relation)
 
-            return matches
+            return (self._name, matches)
 
         else:
             if self._vars in env[self._name]:
-                return True
-            return False
+                return "yes"
+            return "no"
 
 
 class EVariable (Exp):
@@ -284,9 +274,6 @@ def parse_imp (input):
     #            true
     #            false
     #            <identifier>
-    #            ( if <expr> <expr> <expr> )
-    #            ( function ( <name ... ) <expr> )
-    #            ( <expr> <expr> ... )
     #
     # <decl> ::= var name = expr ;
     #
@@ -386,7 +373,8 @@ def shell ():
             if result["result"] == "statement":
                 stmt = result["stmt"]
                 v = stmt.eval(env)
-                print v
+                for i in v[1]:
+                    print "{}{}.".format(v[0],tuple(i))
 
             elif result["result"] == "quit":
                 return
