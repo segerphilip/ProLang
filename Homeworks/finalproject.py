@@ -23,37 +23,6 @@ import sys
 class Exp (object):
     pass
 
-
-class EValue (Exp):
-    # Value literal (could presumably replace EInteger and EBoolean)
-    def __init__ (self,v):
-        self._value = v
-
-    def __str__ (self):
-        return "EValue({})".format(self._value)
-
-    def eval (self,env):
-        return self._value
-
-
-class EPrimCall (Exp):
-    # Call an underlying Python primitive, passing in Values
-    #
-    # simplifying the prim call
-    # it takes an explicit function as first argument
-
-    def __init__ (self,prim,es):
-        self._prim = prim
-        self._exps = es
-
-    def __str__ (self):
-        return "EPrimCall(<prim>,[{}])".format(",".join([ str(e) for e in self._exps]))
-
-    def eval (self,env):
-        vs = [ e.eval(env) for e in self._exps ]
-        return apply(self._prim,vs)
-
-
 class EQuery (Exp):
     # Queries
 
@@ -87,8 +56,12 @@ class EQuery (Exp):
                     elif v[0].isupper:
                         print "INTERMEDIATE VARIABLE"
 
+                ans = EQuery(rel[0],rel[1]).eval(env)
 
-                return (self._name, EQuery(rel[0],rel[1]).eval(env)[1])
+                if ans == "yes" or ans == "no":
+                    return ans
+
+                return (self._name,ans[1])
 
             return "no"
 
@@ -128,116 +101,6 @@ class EQuery (Exp):
             return "no"
 
 
-class EVariable (Exp):
-    # Variables
-
-    def __init__ (self,val):
-        self._name = name
-        self._val = val
-
-    def __str__ (self):
-        return "EVariable({})".format(self._name)
-
-    def eval (self,env):
-        pass
-
-
-
-class EConstant (Exp):
-    # Constants
-
-    def __init__ (self,val):
-        self._name = name
-        self._val = val
-
-    def __str__ (self):
-        return "EConstant({})".format(self._name)
-
-    def eval (self,env):
-        pass
-
-
-
-#
-# Values
-#
-
-class Value (object):
-    pass
-
-
-class VInteger (Value):
-    # Value representation of integers
-
-    def __init__ (self,i):
-        self.value = i
-        self.type = "integer"
-
-    def __str__ (self):
-        return str(self.value)
-
-
-class VString (Value):
-    # Value representation of strings
-
-    def __init__ (self,i):
-        self.value = i
-        self.type = "string"
-
-    def __str__ (self):
-        return self.value
-
-
-class VConstant (Value):
-    # Value representation of constant
-
-    def __init__ (self,i):
-        self.value = i
-        self.type = "constant"
-
-    def __str__ (self):
-        return self.value
-
-
-class VVariable (Value):
-    # Value representation of constant
-
-    def __init__ (self,i):
-        self.value = i
-        self.type = "variable"
-
-    def __str__ (self):
-        return self.value
-
-
-class VBoolean (Value):
-    # Value representation of Booleans
-
-    def __init__ (self,b):
-        self.value = b
-        self.type = "boolean"
-
-    def __str__ (self):
-        return "true" if self.value else "false"
-
-
-class VNone (Value):
-
-    def __init__ (self):
-        self.type = "none"
-        self.value = None
-
-    def __str__ (self):
-        return "none"
-
-
-# Primitive operations
-
-def oper_plus (v1,v2):
-    if v1.type == "integer" and v2.type == "integer":
-        return VInteger(v1.value + v2.value)
-    raise Exception ("Runtime error: trying to add non-numbers")
-
 
 ############################################################
 # Pylog SURFACE SYNTAX
@@ -254,8 +117,7 @@ from pyparsing import Word, Literal, ZeroOrMore, OneOrMore, Keyword, Forward, al
 
 
 def initial_env_imp ():
-    # A sneaky way to allow functions to refer to functions that are not
-    # yet defined at top level, or recursive functions
+    # environment is defined as a dictionary
     env = {}
 
     return env
@@ -285,33 +147,7 @@ def parse_imp (input):
     capitals = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     lowers = "abcdefghijklmnopqrstuvwxyz"
 
-    def checkCapital (word):
-        if word[0].isupper():
-            return VVariable(word)
-        else:
-            return VConstant(word)
-
     pNAME = Word(idChars,idChars+"0123456789")
-    #pNAME.setParseAction(lambda result: checkCapital(result[0]))
-
-    pNAMES = ZeroOrMore(pNAME)
-    pNAMES.setParseAction(lambda result: [result])
-
-    pINTEGER = Word("0123456789")
-    pINTEGER.setParseAction(lambda result: EValue(VInteger(int(result[0]))))
-
-    pSTRING = QuotedString('"')
-    pSTRING.setParseAction(lambda result: EValue(VString(result[0])))
-
-    pBOOLEAN = Keyword("true") | Keyword("false")
-    pBOOLEAN.setParseAction(lambda result: EValue(VBoolean(result[0]=="true")))
-
-    pEXPR = Forward()
-
-    pEXPRS = ZeroOrMore(pEXPR)
-    pEXPRS.setParseAction(lambda result: [result])
-
-    pEXPR << ( pINTEGER | pBOOLEAN | pSTRING )
 
     pSTMT = Forward()
 
@@ -373,8 +209,12 @@ def shell ():
             if result["result"] == "statement":
                 stmt = result["stmt"]
                 v = stmt.eval(env)
-                for i in v[1]:
-                    print "{}{}.".format(v[0],tuple(i))
+
+                if v == "yes" or v == "no":
+                    print v
+                else:
+                    for i in v[1]:
+                        print "{}{}.".format(v[0],tuple(i))
 
             elif result["result"] == "quit":
                 return
