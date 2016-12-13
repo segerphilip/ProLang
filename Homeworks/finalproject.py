@@ -88,7 +88,7 @@ class EQuery (Exp):
                         print "INTERMEDIATE VARIABLE"
 
 
-                return (self._name, EQuery(rel[0],rel[1]).eval(env))
+                return (self._name, EQuery(rel[0],rel[1]).eval(env)[1])
 
             return "no"
 
