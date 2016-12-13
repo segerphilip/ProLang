@@ -14,8 +14,6 @@
 # Prolog-style interpreter
 #
 
-import sys
-
 #
 # Expressions
 #
@@ -58,12 +56,14 @@ class EQuery (Exp):
 
                 ans = EQuery(rel[0],rel[1]).eval(env)
 
-                if ans == "yes" or ans == "no":
+                if ans == "no":
                     return ans
+                else:
+                    continue
 
-                return (self._name,ans[1])
+                #return (self._name,ans[1])
 
-            return "no"
+            return "yes"
 
         if len(self._vars) != len(env[self._name][0]):
             return "Error: Incorrect number of arguments"
